@@ -15,7 +15,8 @@
     clippy::missing_trait_methods,
     clippy::pub_use,
     clippy::question_mark_used,
-    clippy::ref_patterns
+    clippy::ref_patterns,
+    clippy::arbitrary_source_item_ordering
 )]
 mod fill;
 mod order;
