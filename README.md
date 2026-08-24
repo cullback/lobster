@@ -32,6 +32,7 @@ assert_eq!(fills, [Fill::Full(maker)]);
 ## Design
 
 - Generic over the application's order, identifier, quantity, and price types.
+- Every implementation defaults to an empty book.
 - Fills preserve the complete resting order, including application-specific data.
 - Price-time priority with bids and asks exposed from best to worst.
 - Limit orders only. Other order behaviors can be implemented by exchange infrastructure around the

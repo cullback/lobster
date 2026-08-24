@@ -3,7 +3,9 @@
 use crate::{Fill, Order, ReduceError};
 
 /// A price-time-priority limit order book.
-pub trait OrderBook {
+///
+/// The default value is an empty order book.
+pub trait OrderBook: Default {
     /// The order type stored by the book.
     type Order: Order;
 

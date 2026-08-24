@@ -47,9 +47,10 @@ distinct operation.
 
 ## Construction
 
-`Default` and `FromIterator` are not requirements of the `OrderBook` trait. Construction is separate
-from matching behavior, and collecting an iterator should not unexpectedly execute orders or panic
-when they cross.
+`OrderBook` requires `Default`, whose value is an empty book. Empty construction is universal and
+lets generic infrastructure instantiate implementations without implementation-specific factories.
+`FromIterator` is not required: collecting an iterator should not unexpectedly execute orders or
+panic when they cross.
 
 ## Indexed price levels
 
@@ -72,9 +73,10 @@ non-best level for contiguous searches and lower fixed overhead on books with re
 
 ## Validation and measurement
 
-`VecBook` is the differential reference for `LevelBook` and `FlatLevelBook`. Deterministic mixed
-traces, property-based action sequences, real QuantCup replay, and internal arena/link invariants
-check equivalent behavior.
+A trait-level semantic conformance suite runs independently against every implementation. `VecBook`
+is also the differential reference for `LevelBook` and `FlatLevelBook`; deterministic mixed traces,
+property-based action sequences, real QuantCup replay, and internal arena/link invariants check
+additional equivalent behavior.
 Benchmarks generate or load traces before timing and exclude prepared-book setup and teardown.
 Focused experiments cover operation scaling, arena reuse, large-order cloning, and identifier
 hashers.
