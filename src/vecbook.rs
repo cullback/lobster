@@ -31,21 +31,13 @@ where
     }
 }
 
-impl<OrderType: Order> VecBook<OrderType> {
-    /// Creates an empty order book.
-    #[must_use]
-    pub const fn new() -> Self {
+impl<OrderType: Order> Default for VecBook<OrderType> {
+    fn default() -> Self {
         Self {
             bids: Vec::new(),
             asks: Vec::new(),
             fills: Vec::new(),
         }
-    }
-}
-
-impl<OrderType: Order> Default for VecBook<OrderType> {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

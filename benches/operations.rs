@@ -246,9 +246,9 @@ fn operation_benchmarks(criterion: &mut Criterion) {
         });
     }
 
-    let mut large_vecbook = VecBook::new();
-    let mut large_levelbook = LevelBook::new();
-    let mut large_flatbook = FlatLevelBook::new();
+    let mut large_vecbook = VecBook::default();
+    let mut large_levelbook = LevelBook::default();
+    let mut large_flatbook = FlatLevelBook::default();
     let maker = LargeOrder::sell(0, 1_000, 100);
     let _ = large_vecbook.submit(maker.clone());
     let _ = large_levelbook.submit(maker.clone());
@@ -309,6 +309,58 @@ where
     let _ = clone.submit(spare);
     let _ = clone.cancel(&spare.id());
     clone
+}
+
+fn layered_book<BookType>(levels: u32, orders_per_level: u32) -> BookType
+where
+    BookType: OrderBook<Order = SimpleOrder>,
+{
+    let mut book = BookType::default();
+    for level in 0..levels {
+        for position in 0..orders_per_level {
+            let order_id = level * orders_per_level + position;
+            let _ = book.submit(SimpleOrder::buy(order_id, 10, 10_000 + level));
+        }
+    }
+    book
+}
+
+fn level_lookup_benchmarks(criterion: &mut Criterion) {
+    const ORDERS_PER_LEVEL: u32 = 4;
+    let mut group = criterion.benchmark_group("level_lookup");
+    group.sample_size(20);
+    group.measurement_time(Duration::from_secs(3));
+
+    for levels in [8_u32, 128, 2_048, 8_192] {
+        let levelbook = layered_book::<LevelBook<SimpleOrder>>(levels, ORDERS_PER_LEVEL);
+        let flatbook = layered_book::<FlatLevelBook<SimpleOrder>>(levels, ORDERS_PER_LEVEL);
+        let middle_order = (levels / 2) * ORDERS_PER_LEVEL + 1;
+        let best_order = (levels - 1) * ORDERS_PER_LEVEL + 1;
+
+        for (position, order_id) in [("middle", middle_order), ("best", best_order)] {
+            group.bench_function(
+                BenchmarkId::new(format!("cancel_{position}_level"), levels),
+                |bencher| {
+                    bencher.iter_batched_ref(
+                        || levelbook.clone(),
+                        |book| black_box(book.cancel(black_box(&order_id))),
+                        BatchSize::SmallInput,
+                    );
+                },
+            );
+            group.bench_function(
+                BenchmarkId::new(format!("cancel_{position}_flat"), levels),
+                |bencher| {
+                    bencher.iter_batched_ref(
+                        || flatbook.clone(),
+                        |book| black_box(book.cancel(black_box(&order_id))),
+                        BatchSize::SmallInput,
+                    );
+                },
+            );
+        }
+    }
+    group.finish();
 }
 
 fn price_level_benchmarks(criterion: &mut Criterion) {
@@ -403,6 +455,7 @@ fn hash_benchmarks(criterion: &mut Criterion) {
 criterion_group!(
     benches,
     operation_benchmarks,
+    level_lookup_benchmarks,
     price_level_benchmarks,
     hash_benchmarks
 );

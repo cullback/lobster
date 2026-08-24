@@ -8,7 +8,7 @@ straightforward matching mechanics and order types.
 ```rust
 use lobster::{Fill, OrderBook, SimpleOrder, VecBook};
 
-let mut book = VecBook::new();
+let mut book = VecBook::default();
 
 let _ = book.submit(SimpleOrder::sell(0, 2, 5));
 let maker = SimpleOrder::sell(1, 3, 6);

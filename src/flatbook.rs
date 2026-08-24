@@ -28,7 +28,6 @@ struct OrderNode<OrderType> {
 struct LevelNode {
     head: Option<OrderKey>,
     tail: Option<OrderKey>,
-    orders: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -38,13 +37,15 @@ struct FlatLevels<Price> {
     entries: Vec<(Price, LevelKey)>,
 }
 
-impl<Price: Ord> FlatLevels<Price> {
-    fn new() -> Self {
+impl<Price> Default for FlatLevels<Price> {
+    fn default() -> Self {
         Self {
             entries: Vec::new(),
         }
     }
+}
 
+impl<Price: Ord> FlatLevels<Price> {
     fn search(&self, price: &Price, is_buy: bool) -> Result<usize, usize> {
         if is_buy {
             self.entries
@@ -117,6 +118,7 @@ impl<'book, OrderType: Order> Iterator for LevelOrders<'book, OrderType> {
 /// with relatively few active price levels. It requires cloneable identifiers and prices because it
 /// owns keys in those indexes. The identifier index uses a fast, non-cryptographic hasher intended
 /// for trusted exchange input.
+#[derive(Clone)]
 pub struct FlatLevelBook<OrderType: Order> {
     orders: Arena<OrderNode<OrderType>, OrderTag>,
     levels: Arena<LevelNode, LevelTag>,
@@ -127,19 +129,6 @@ pub struct FlatLevelBook<OrderType: Order> {
 }
 
 impl<OrderType: Order> FlatLevelBook<OrderType> {
-    /// Creates an empty order book.
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            orders: Arena::new(),
-            levels: Arena::new(),
-            bids: FlatLevels::new(),
-            asks: FlatLevels::new(),
-            by_id: FxHashMap::default(),
-            fills: Vec::new(),
-        }
-    }
-
     fn level_orders(&self, level: LevelKey) -> LevelOrders<'_, OrderType> {
         LevelOrders {
             arena: &self.orders,
@@ -158,11 +147,9 @@ impl<OrderType: Order> FlatLevelBook<OrderType> {
         for (is_buy, levels) in [(true, &self.bids), (false, &self.asks)] {
             for (price, level_key) in levels.best_first() {
                 let level = self.levels.get(level_key).expect("level key was invalid");
-                assert!(level.orders > 0);
                 assert!(level.head.is_some());
                 assert!(level.tail.is_some());
 
-                let mut count = 0;
                 let mut previous = None;
                 let mut current = level.head;
                 while let Some(order_key) = current {
@@ -174,10 +161,8 @@ impl<OrderType: Order> FlatLevelBook<OrderType> {
                     assert!(node.order.price() == price);
                     previous = current;
                     current = node.next;
-                    count += 1;
                 }
                 assert_eq!(previous, level.tail);
-                assert_eq!(count, level.orders);
             }
         }
 
@@ -212,24 +197,13 @@ impl<OrderType: Order> FlatLevelBook<OrderType> {
 
 impl<OrderType: Order> Default for FlatLevelBook<OrderType> {
     fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<OrderType> Clone for FlatLevelBook<OrderType>
-where
-    OrderType: Order,
-    OrderType::OrderId: Clone,
-    OrderType::Price: Clone,
-{
-    fn clone(&self) -> Self {
         Self {
-            orders: self.orders.clone(),
-            levels: self.levels.clone(),
-            bids: self.bids.clone(),
-            asks: self.asks.clone(),
-            by_id: self.by_id.clone(),
-            fills: self.fills.clone(),
+            orders: Arena::new(),
+            levels: Arena::new(),
+            bids: FlatLevels::default(),
+            asks: FlatLevels::default(),
+            by_id: FxHashMap::default(),
+            fills: Vec::new(),
         }
     }
 }
@@ -259,10 +233,6 @@ where
 
     fn len(&self) -> usize {
         self.orders.len()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.orders.is_empty()
     }
 
     fn clear(&mut self) {
@@ -438,7 +408,6 @@ where
             level.head = Some(order_key);
         }
         level.tail = Some(order_key);
-        level.orders += 1;
 
         let replaced = self.by_id.insert(order_id, order_key);
         debug_assert!(replaced.is_none(), "duplicate order id");
@@ -473,8 +442,7 @@ where
         if level.tail == Some(key) {
             level.tail = previous;
         }
-        level.orders -= 1;
-        let remove_level = level.orders == 0;
+        let remove_level = level.head.is_none();
 
         let node = self
             .orders

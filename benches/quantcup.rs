@@ -62,9 +62,9 @@ where
 
 fn quantcup_benchmarks(criterion: &mut Criterion) {
     let actions = load_actions();
-    let mut vecbook = VecBook::new();
-    let mut levelbook = LevelBook::new();
-    let mut flatbook = FlatLevelBook::new();
+    let mut vecbook = VecBook::default();
+    let mut levelbook = LevelBook::default();
+    let mut flatbook = FlatLevelBook::default();
     let expected = replay(&mut vecbook, &actions);
     assert_eq!(
         replay(&mut levelbook, &actions),
@@ -104,21 +104,21 @@ fn quantcup_benchmarks(criterion: &mut Criterion) {
     group.throughput(Throughput::Elements(actions.len() as u64));
     group.bench_function(BenchmarkId::from_parameter("vecbook"), |bencher| {
         bencher.iter_batched_ref(
-            VecBook::new,
+            VecBook::default,
             |book| black_box(replay(book, black_box(&actions))),
             criterion::BatchSize::SmallInput,
         );
     });
     group.bench_function(BenchmarkId::from_parameter("levelbook"), |bencher| {
         bencher.iter_batched_ref(
-            LevelBook::new,
+            LevelBook::default,
             |book| black_box(replay(book, black_box(&actions))),
             criterion::BatchSize::SmallInput,
         );
     });
     group.bench_function(BenchmarkId::from_parameter("flatbook"), |bencher| {
         bencher.iter_batched_ref(
-            FlatLevelBook::new,
+            FlatLevelBook::default,
             |book| black_box(replay(book, black_box(&actions))),
             criterion::BatchSize::SmallInput,
         );

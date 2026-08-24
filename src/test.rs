@@ -33,8 +33,8 @@ fn submit_both(
 
 #[test]
 fn levelbook_matches_vecbook_across_mixed_operations() {
-    let mut reference = ReferenceBook::new();
-    let mut levelbook = LevelBook::new();
+    let mut reference = ReferenceBook::default();
+    let mut levelbook = LevelBook::default();
 
     for order in [
         SimpleOrder::buy(0, 4, 99),
@@ -59,7 +59,7 @@ fn levelbook_matches_vecbook_across_mixed_operations() {
 
 #[test]
 fn vecbook_leaves_identifier_uniqueness_to_the_caller() {
-    let mut book = ReferenceBook::new();
+    let mut book = ReferenceBook::default();
 
     let _ = book.submit(SimpleOrder::buy(7, 1, 4));
     let _ = book.submit(SimpleOrder::buy(7, 1, 5));
@@ -69,7 +69,7 @@ fn vecbook_leaves_identifier_uniqueness_to_the_caller() {
 
 #[test]
 fn levelbook_reuses_arena_high_water_mark() {
-    let mut book = LevelBook::new();
+    let mut book = LevelBook::default();
     for order_id in 0..10_000 {
         let _ = book.submit(SimpleOrder::buy(order_id, 1, 100));
     }
@@ -88,7 +88,7 @@ fn levelbook_reuses_arena_high_water_mark() {
 
 #[test]
 fn flatbook_reuses_arena_high_water_mark() {
-    let mut book = FlatLevelBook::new();
+    let mut book = FlatLevelBook::default();
     for order_id in 0..10_000 {
         let _ = book.submit(SimpleOrder::buy(order_id, 1, 100));
     }
@@ -122,9 +122,9 @@ mod property_tests {
                 1..500,
             )
         ) {
-            let mut reference = ReferenceBook::new();
-            let mut levelbook = LevelBook::new();
-            let mut flatbook = FlatLevelBook::new();
+            let mut reference = ReferenceBook::default();
+            let mut levelbook = LevelBook::default();
+            let mut flatbook = FlatLevelBook::default();
             let mut next_order_id = 0_u32;
 
             for (kind, is_buy, raw_price, raw_quantity, selector) in actions {

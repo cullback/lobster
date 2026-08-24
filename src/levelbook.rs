@@ -64,19 +64,6 @@ pub struct LevelBook<OrderType: Order> {
 }
 
 impl<OrderType: Order> LevelBook<OrderType> {
-    /// Creates an empty order book.
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            orders: Arena::new(),
-            levels: Arena::new(),
-            bids: BTreeMap::new(),
-            asks: BTreeMap::new(),
-            by_id: FxHashMap::default(),
-            fills: Vec::new(),
-        }
-    }
-
     fn level_orders(&self, level: LevelKey) -> LevelOrders<'_, OrderType> {
         LevelOrders {
             arena: &self.orders,
@@ -151,7 +138,14 @@ impl<OrderType: Order> LevelBook<OrderType> {
 
 impl<OrderType: Order> Default for LevelBook<OrderType> {
     fn default() -> Self {
-        Self::new()
+        Self {
+            orders: Arena::new(),
+            levels: Arena::new(),
+            bids: BTreeMap::new(),
+            asks: BTreeMap::new(),
+            by_id: FxHashMap::default(),
+            fills: Vec::new(),
+        }
     }
 }
 

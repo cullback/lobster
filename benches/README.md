@@ -10,7 +10,8 @@ benchmarks with host CPU optimizations through `just`.
 
 Trace replays compare `VecBook`, tree-indexed `LevelBook`, and contiguous-price-indexed
 `FlatLevelBook`. The `price_levels` operation group varies the active level count from 8 to 8,192
-and measures existing-level, new-best, and worst-case new-level insertion.
+and measures existing-level, new-best, and worst-case new-level insertion. The `level_lookup` group
+measures cancellation at best and middle levels while varying active levels over the same range.
 
 ## Synthetic workloads
 

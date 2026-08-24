@@ -264,7 +264,7 @@ fn record_submit(
 
 fn generate(config: Workload) -> (VecBook<SimpleOrder>, Vec<Action>) {
     let mut rng = Rng::new(config.seed);
-    let mut book = VecBook::new();
+    let mut book = VecBook::default();
     let mut active = ActiveOrders::with_capacity(config.initial_orders + config.actions / 2);
     let mut next_order_id = 0_u32;
 
@@ -617,8 +617,8 @@ fn synthetic_benchmarks(criterion: &mut Criterion) {
         let (initial_vecbook, actions) = generate(workload);
         print_stats(workload.name, collect_stats(&initial_vecbook, &actions));
 
-        let mut initial_levelbook = LevelBook::new();
-        let mut initial_flatbook = FlatLevelBook::new();
+        let mut initial_levelbook = LevelBook::default();
+        let mut initial_flatbook = FlatLevelBook::default();
         for order in initial_vecbook.iter().copied() {
             let _ = initial_levelbook.submit(order);
             let _ = initial_flatbook.submit(order);
