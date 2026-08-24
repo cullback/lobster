@@ -1,189 +1,245 @@
-//! Tests for the order book.
-#[cfg(test)]
-mod tests {
-    use crate::{simple_order::SimpleOrder, Fill, OrderBook, VecBook};
+use crate::{Fill, Order, OrderBook, ReduceError, SimpleOrder, VecBook};
 
-    type MyBook = VecBook<SimpleOrder>;
-    type MyOrder = SimpleOrder;
+type Book = VecBook<SimpleOrder>;
 
-    #[test]
-    fn partial_fill() {
-        let mut book = MyBook::default();
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ApplicationSide {
+    Bid,
+    Offer,
+}
 
-        let o1 = MyOrder::sell(0, 2, 5);
-        let o2 = MyOrder::buy(1, 1, 5);
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ApplicationOrder {
+    id: String,
+    quantity: u32,
+    price: u32,
+    side: ApplicationSide,
+    account: String,
+}
 
-        book.add(o1);
-        let fills = book.add(o2);
-        assert_eq!(fills, [Fill::Partial(o1.with_quantity(1))]);
+impl Order for ApplicationOrder {
+    type OrderId = String;
+    type Quantity = u32;
+    type Price = u32;
+
+    fn id(&self) -> &Self::OrderId {
+        &self.id
     }
 
-    #[test]
-    fn complete_fill() {
-        let mut book = MyBook::default();
-
-        let o1 = MyOrder::sell(0, 2, 5);
-        let o2 = MyOrder::buy(1, 2, 5);
-
-        book.add(o1);
-        let fills = book.add(o2);
-
-        assert_eq!(fills, [Fill::Full(o1)]);
+    fn quantity(&self) -> &Self::Quantity {
+        &self.quantity
     }
 
-    #[test]
-    fn order_with_zero_quantity() {
-        let mut book = MyBook::default();
-        let o1 = MyOrder::sell(0, 0, 5);
-        book.add(o1);
-        let fills = book.add(MyOrder::buy(1, 1, 5));
-        assert_eq!(fills, [Fill::Full(o1)]);
-        assert_eq!(book.len(), 1);
+    fn price(&self) -> &Self::Price {
+        &self.price
     }
 
-    #[test]
-    fn overfill_match_with_resting() {
-        let mut book = MyBook::default();
-
-        let o1 = MyOrder::sell(0, 2, 5);
-        let o2 = MyOrder::buy(1, 3, 5);
-
-        book.add(o1);
-        let fills = book.add(o2);
-
-        assert_eq!(fills, [Fill::Full(o1)]);
-
-        let fills = book.add(MyOrder::sell(2, 4, 5));
-
-        assert_eq!(fills, [Fill::Full(o2.with_quantity(1))]);
+    fn is_buy(&self) -> bool {
+        matches!(self.side, ApplicationSide::Bid)
     }
 
-    #[test]
-    fn add_order_then_remove_twice() {
-        let mut book = MyBook::default();
-        let order_id = 1;
-        let order = MyOrder::buy(order_id, 1, 2);
-        let fills = book.add(order);
-        assert!(fills.is_empty());
-        assert_eq!(book.len(), 1);
-        assert_eq!(book.remove(order_id), Some(order));
-        assert_eq!(book.len(), 0);
-        assert_eq!(book.remove(order_id), None);
+    fn set_quantity(&mut self, quantity: Self::Quantity) {
+        self.quantity = quantity;
     }
+}
 
-    #[test]
-    fn multiple_fills_with_cancel() {
-        let mut book = MyBook::default();
+fn full(maker: SimpleOrder) -> Fill<SimpleOrder> {
+    Fill::Full(maker)
+}
 
-        let o1 = MyOrder::sell(0, 2, 5);
-        let o2 = MyOrder::sell(1, 3, 6);
-        let o3 = MyOrder::sell(2, 4, 7);
+fn partial(maker: SimpleOrder, quantity: u32) -> Fill<SimpleOrder> {
+    Fill::Partial { maker, quantity }
+}
 
-        book.add(o1);
-        book.add(o2);
-        book.add(o3);
-        book.remove(0);
-        let fills = book.add(MyOrder::buy(3, 6, 6));
+#[test]
+fn fills_preserve_application_owned_order_data() {
+    let maker = ApplicationOrder {
+        id: "maker".into(),
+        quantity: 5,
+        price: 10,
+        side: ApplicationSide::Offer,
+        account: "account-a".into(),
+    };
+    let taker = ApplicationOrder {
+        id: "taker".into(),
+        quantity: 2,
+        price: 10,
+        side: ApplicationSide::Bid,
+        account: "account-b".into(),
+    };
+    let mut book = VecBook::new();
 
-        assert_eq!(fills, [Fill::Full(o2)]);
+    let _ = book.submit(maker.clone());
+    let fills = book.submit(taker);
 
-        let o0 = MyOrder::buy(0, 4, 5);
-        let o1 = MyOrder::buy(1, 3, 6);
-        let o2 = MyOrder::buy(2, 2, 7);
+    assert_eq!(fills, [Fill::Partial { maker, quantity: 2 }]);
+}
 
-        let mut book = MyBook::default();
-        book.add(o0);
-        book.add(o1);
-        book.add(o2);
-        book.remove(0);
-        let fills = book.add(MyOrder::sell(3, 6, 6));
+#[test]
+fn partially_fills_a_maker() {
+    let maker = SimpleOrder::sell(0, 2, 5);
+    let taker = SimpleOrder::buy(1, 1, 5);
+    let mut book = Book::new();
 
-        assert_eq!(fills, [Fill::Full(o2.with_quantity(2)), Fill::Full(o1)]);
+    let _ = book.submit(maker);
+    let fills = book.submit(taker);
+
+    assert_eq!(fills, [partial(maker, 1)]);
+    assert_eq!(book.get(&maker.id()).unwrap().quantity(), 1);
+}
+
+#[test]
+fn completely_fills_both_orders() {
+    let maker = SimpleOrder::sell(0, 2, 5);
+    let taker = SimpleOrder::buy(1, 2, 5);
+    let mut book = Book::new();
+
+    let _ = book.submit(maker);
+    let fills = book.submit(taker);
+
+    assert_eq!(fills, [full(maker)]);
+    assert!(book.is_empty());
+}
+
+#[test]
+fn rests_a_takers_remaining_quantity() {
+    let maker = SimpleOrder::sell(0, 2, 5);
+    let taker = SimpleOrder::buy(1, 3, 5);
+    let mut book = Book::new();
+
+    let _ = book.submit(maker);
+    let fills = book.submit(taker);
+
+    assert_eq!(fills, [full(maker)]);
+    assert_eq!(book.get(&taker.id()).unwrap().quantity(), 1);
+}
+
+#[test]
+fn matches_in_price_time_order() {
+    let makers = [
+        SimpleOrder::sell(0, 1, 5),
+        SimpleOrder::sell(1, 2, 5),
+        SimpleOrder::sell(2, 1, 6),
+    ];
+    let taker = SimpleOrder::buy(3, 4, 6);
+    let mut book = Book::new();
+
+    for maker in makers {
+        let _ = book.submit(maker);
     }
+    let fills = book.submit(taker);
 
-    #[test]
-    fn fire_for_order_that_was_filled_exactly() {
-        let mut book = MyBook::default();
-        let o0 = MyOrder::sell(0, 2, 23);
-        book.add(o0);
-        let fills = book.add(MyOrder::buy(1, 2, 23));
-        assert_eq!(fills, [Fill::Full(o0)]);
-        let fills = book.add(MyOrder::buy(2, 2, 23));
-        assert!(fills.is_empty());
+    assert_eq!(fills, [full(makers[0]), full(makers[1]), full(makers[2])]);
+    assert!(book.is_empty());
+}
 
-        let mut book = MyBook::default();
-        let o0 = MyOrder::buy(0, 2, 23);
-        book.add(o0);
-        let fills = book.add(MyOrder::sell(1, 2, 23));
-        assert_eq!(fills, [Fill::Full(o0)]);
-        let fills = book.add(MyOrder::sell(2, 2, 23));
-        assert!(fills.is_empty());
+#[test]
+fn preserves_bid_time_priority() {
+    let makers = [
+        SimpleOrder::buy(0, 1, 5),
+        SimpleOrder::buy(1, 1, 5),
+        SimpleOrder::buy(2, 1, 5),
+    ];
+    let taker = SimpleOrder::sell(3, 3, 5);
+    let mut book = Book::new();
+
+    for maker in makers {
+        let _ = book.submit(maker);
     }
+    let fills = book.submit(taker);
 
-    #[test]
-    fn fire_for_order_that_was_filled_excessively() {
-        let mut book = MyBook::default();
-        let o0 = MyOrder::sell(0, 1, 23);
-        book.add(o0);
-        let fills = book.add(MyOrder::buy(1, 2, 23));
-        assert_eq!(fills, [Fill::Full(o0)]);
-        let fills = book.add(MyOrder::buy(2, 1, 23));
-        assert!(fills.is_empty());
+    assert_eq!(fills, [full(makers[0]), full(makers[1]), full(makers[2])]);
+}
 
-        let mut book = MyBook::default();
-        let o0 = MyOrder::buy(0, 1, 23);
-        book.add(o0);
-        let fills = book.add(MyOrder::sell(1, 2, 23));
-        assert_eq!(fills, [Fill::Full(o0)]);
-        let fills = book.add(MyOrder::sell(2, 1, 23));
-        assert!(fills.is_empty());
-    }
+#[test]
+fn allows_a_non_crossing_spread() {
+    let bid = SimpleOrder::buy(0, 1, 100);
+    let ask = SimpleOrder::sell(1, 1, 101);
+    let mut book = Book::new();
 
-    #[test]
-    fn trade_twice_with_resting_order() {
-        let mut book = MyBook::default();
-        let o0 = MyOrder::sell(0, 2, 23);
-        book.add(o0);
-        let fills = book.add(MyOrder::buy(1, 1, 23));
-        assert_eq!(fills, [Fill::Partial(o0.with_quantity(1))]);
-        let fills = book.add(MyOrder::buy(2, 1, 23));
-        assert_eq!(fills, [Fill::Full(o0.with_quantity(1))]);
+    assert!(book.submit(bid).is_empty());
+    assert!(book.submit(ask).is_empty());
 
-        let mut book = MyBook::default();
-        let o0 = MyOrder::buy(0, 2, 23);
-        book.add(o0);
-        let fills = book.add(MyOrder::sell(1, 1, 23));
-        assert_eq!(fills, [Fill::Partial(o0.with_quantity(1))]);
-        let fills = book.add(MyOrder::sell(2, 1, 23));
-        assert_eq!(fills, [Fill::Full(o0.with_quantity(1))]);
-    }
+    assert_eq!(book.best_bid(), Some(&bid));
+    assert_eq!(book.best_ask(), Some(&ask));
+    assert_eq!(book.bids().copied().collect::<Vec<_>>(), [bid]);
+    assert_eq!(book.asks().copied().collect::<Vec<_>>(), [ask]);
+}
 
-    #[test]
-    fn test_queue_priority() {
-        let o1 = MyOrder::sell(0, 1, 23);
-        let o2 = MyOrder::sell(1, 1, 23);
-        let o3 = MyOrder::sell(2, 1, 23);
-        let orders = vec![o1, o2, o3];
+#[test]
+fn accepts_zero_quantity_orders() {
+    let maker = SimpleOrder::sell(0, 0, 5);
+    let taker = SimpleOrder::buy(1, 1, 5);
+    let mut book = Book::new();
 
-        let mut book = MyBook::from_iter(orders.clone());
-        let fills = book.add(MyOrder::buy(3, 3, 23));
-        assert_eq!(fills, [Fill::Full(o1), Fill::Full(o2), Fill::Full(o3)],);
+    assert!(book.submit(maker).is_empty());
+    assert_eq!(book.submit(taker), [full(maker)]);
+    assert_eq!(book.get(&taker.id()).unwrap().quantity(), 1);
+}
 
-        let o1 = MyOrder::buy(0, 1, 23);
-        let o2 = MyOrder::buy(1, 1, 23);
-        let o3 = MyOrder::buy(2, 1, 23);
-        let orders = vec![o1, o2, o3];
+#[test]
+fn leaves_identifier_uniqueness_to_the_caller() {
+    let mut book = Book::new();
 
-        let mut book = MyBook::from_iter(orders.clone());
-        let fills = book.add(MyOrder::sell(3, 3, 23));
-        assert_eq!(fills, [Fill::Full(o1), Fill::Full(o2), Fill::Full(o3)],);
-    }
+    let _ = book.submit(SimpleOrder::buy(7, 1, 4));
+    let _ = book.submit(SimpleOrder::buy(7, 1, 5));
 
-    #[test]
-    fn test_modify_order() {
-        let mut book = MyBook::from_iter([MyOrder::sell(0, 2, 23)]);
+    assert_eq!(book.len(), 2);
+}
 
-        assert_eq!(book.modify(0, 1), true);
-        assert_eq!(book.modify(0, 1), false);
-    }
+#[test]
+fn cancels_an_order() {
+    let order = SimpleOrder::buy(1, 1, 2);
+    let mut book = Book::new();
+
+    let _ = book.submit(order);
+
+    assert!(book.contains(&order.id()));
+    assert_eq!(book.cancel(&order.id()), Some(order));
+    assert_eq!(book.cancel(&order.id()), None);
+}
+
+#[test]
+fn reduces_an_order_without_losing_priority() {
+    let first = SimpleOrder::sell(0, 2, 5);
+    let second = SimpleOrder::sell(1, 2, 5);
+    let taker = SimpleOrder::buy(2, 2, 5);
+    let mut book = Book::new();
+
+    let _ = book.submit(first);
+    let _ = book.submit(second);
+    assert_eq!(book.reduce(&first.id(), 1), Ok(()));
+    let fills = book.submit(taker);
+
+    assert_eq!(
+        fills,
+        [
+            full(SimpleOrder::sell(first.id(), 1, first.price())),
+            partial(second, 1),
+        ]
+    );
+}
+
+#[test]
+fn reports_reduction_errors() {
+    let order = SimpleOrder::buy(0, 2, 5);
+    let mut book = Book::new();
+    let _ = book.submit(order);
+
+    assert_eq!(book.reduce(&99, 1), Err(ReduceError::NotFound));
+    assert_eq!(book.reduce(&order.id(), 2), Err(ReduceError::NotReduced));
+    assert_eq!(book.reduce(&order.id(), 3), Err(ReduceError::NotReduced));
+    assert_eq!(book.reduce(&order.id(), 0), Ok(()));
+}
+
+#[test]
+fn clears_all_open_orders() {
+    let mut book = Book::new();
+    let _ = book.submit(SimpleOrder::buy(0, 1, 4));
+    let _ = book.submit(SimpleOrder::sell(1, 1, 5));
+
+    book.clear();
+
+    assert!(book.is_empty());
+    assert_eq!(book.iter().count(), 0);
 }

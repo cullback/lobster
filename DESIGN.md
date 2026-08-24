@@ -1,82 +1,58 @@
 # Design
 
-Some notes about the design.
+## Application-owned order types
 
-## Should `Order` have `is_buy` field?
+`Order` deliberately exposes behavior rather than prescribing identifier, price, quantity, or side
+types. Applications can retain richer domain types and arbitrary metadata on their orders.
 
-pros
+The book only asks `is_buy()`. A library-owned side enum would force users to translate into a type
+that cannot represent any additional application semantics.
 
-- simplifies api. One method add instead of separate buy and sell
-    - avoids `match side { Buy => self.buy(order), Sell => self.sell(order) }`
-- one return type instead of potentially two
-- some book implementations may benefit from having the side field
-- can implement `OrderBook::from_iter`
+## Book-owned fills
 
-cons
+Submitting an order returns a slice of fills owned by the book. The slice remains valid until the
+next mutable book operation. This keeps the submission API small and lets the book reuse its fill
+buffer.
 
-- order type would need a side field, increasing its size. Isn't necessary in many orderbook implementations
-- orderbook implementations often store bids and asks separately, and side can be implicitly derived
-- separate buy and sell methods with different return types can avoid branching
-    - don't need initial buy/sell check
-    - may need to check side flag on match iteration
-    - branch prediction may make all these irrrelevant
+A full fill owns the maker removed from the book. A partial fill contains:
 
-## Add order return type
+- a maker-order snapshot immediately before execution; and
+- the executed quantity.
 
-What should the function signature be for the add order method?
+Returning the order preserves arbitrary application-specific data. A partially filled maker remains
+in the book, so producing an owned snapshot requires `Order: Clone`. Completely filled makers are
+moved directly into the fill buffer.
 
-> `fn add(&mut self, order: Order, &mut Vec<Fill>) -> ()`
+The executed quantity is a separate field rather than being written into a partial maker snapshot.
+Consequently, the snapshot remains a genuine order and its quantity has one unambiguous meaning.
 
-- use an out parameter to avoid allocations
-- tedious for caller to manage buffer
+There is no separate submission status. Callers that need to know whether the incoming order remains
+open can query the book by its identifier after processing the fills.
 
-> `fn add(&mut self, order: Order) -> Vec<Fill>`
+## Identifier uniqueness
 
-- allocates a new vector for every add
+Order identifiers are expected to be unique, but the book does not enforce this. Identifier
+allocation and uniqueness belong to the surrounding exchange infrastructure. This also avoids
+requiring every implementation to maintain an ID index.
 
-> `fn add(&mut self, order: Order) -> impl Iterator<Item=Fill>`
+## Quantity policy
 
-- avoids allocations
-- effectful iterators are generally considered bad practice
-- what happens if we drop the iterator before it's done?
-- why would we want this?
+The book does not define or validate zero, negative, or otherwise invalid quantities. Quantity policy
+belongs to the surrounding exchange infrastructure, just like identifier uniqueness. Matching only
+requires quantities to be ordered and subtractable.
 
-> `fn add(&mut self, order: Order) -> &[Fill<Order>]`
+Reducing an order requires a quantity lower than its current quantity. Cancellation remains a
+distinct operation.
 
-- let book manage the buffer
-- caller can't modify the buffer
-- allocation free
+## Construction
 
-## Why not use signed quantity to represent sells?
+`Default` and `FromIterator` are not requirements of the `OrderBook` trait. Construction is separate
+from matching behavior, and collecting an iterator should not unexpectedly execute orders or panic
+when they cross.
 
-- Code becomes more annoying to reason about
-- `Quantity::MIN.neg()` would panic
-- What would the sign of Fill's quantity be?
-- con: quantity needs to be casted when updating position (likely signed)
+## Other order behavior
 
-## Why not have the order book generate the order ID?
+The matching engine accepts limit orders only. Market, immediate-or-cancel, post-only, and similar
+policies belong in infrastructure around the book.
 
-- tuple return is yucky
-- introduces unnecessary mapping, constant conversions
-- Order IDs should be unique across all order books
-
-## Why is order modify the way it is?
-
-- Setting the quantity to a value avoids subtraction / underflow
-- Setting the price to zero would imply cancelling it, which needs to be done via remove
-
-## Why no market order or other order types?
-
-- Other order types can be emulated using limit orders
-
-## Why no mid price function?
-
-- price is generic and mid price may not be well-defined
-
-
-## Order reference
-
-Returning order references would be nice
-how do we indicate fills?
-update quantity to represent quantity filled
-how do we indicate whether order was completely filled?
+A midpoint is not part of the API because price is generic and a midpoint may not be well-defined.

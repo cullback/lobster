@@ -1,25 +1,32 @@
-# Orderbook
+# Lobster
 
-A simple in-memory, price-time priority limit orderbook in Rust. Appropriate for exchanges with simple matching mechanics and order types.
+A small in-memory, price-time-priority limit order book in Rust. It is intended for exchanges with
+straightforward matching mechanics and order types.
 
 ## Example
 
 ```rust
-let mut book = VecBook<SimpleOrder>::default();
+use lobster::{Fill, OrderBook, SimpleOrder, VecBook};
 
-book.add(SimpleOrder::sell(0, 2, 5));
-book.add(SimpleOrder::sell(1, 3, 6));
-book.add(SimpleOrder::sell(2, 4, 7));
+let mut book = VecBook::new();
 
-book.remove(0);  // remove order with id 0
+let _ = book.submit(SimpleOrder::sell(0, 2, 5));
+let maker = SimpleOrder::sell(1, 3, 6);
+let _ = book.submit(maker);
+let _ = book.submit(SimpleOrder::sell(2, 4, 7));
+book.cancel(&0);
 
-let mut fills = book.add(SimpleOrder::buy(3, 6, 6));
+let fills = book.submit(SimpleOrder::buy(3, 6, 6));
 
-assert_eq!(fills, [Fill::full(1, 3, 6)]);
+assert_eq!(fills, [Fill::Full(maker)]);
 ```
 
-## Features
+## Design
 
-- allocation free during matching
-- generic over the order type
-- only supports limit orders. Market, IOC, ALO, etc. can be emulated on top.
+- Generic over the application's order, identifier, quantity, and price types.
+- Fills preserve the complete resting order, including application-specific data.
+- Price-time priority with bids and asks exposed from best to worst.
+- Limit orders only. Other order behaviors can be implemented by exchange infrastructure around the
+  book.
+- Order identifier uniqueness is a caller responsibility; the book does not maintain a separate ID
+  index.

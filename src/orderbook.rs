@@ -1,71 +1,71 @@
-//! Order book trait.
-use crate::{Fill, Order};
+//! The order book interface.
 
-pub trait OrderBook<OrderType: Order>: Default + FromIterator<OrderType> {
-    /// Returns the number of open orders in the order book.
+use crate::{Fill, Order, ReduceError};
+
+/// A price-time-priority limit order book.
+pub trait OrderBook {
+    /// The order type stored by the book.
+    type Order: Order;
+
+    /// Returns the number of open orders in the book.
     #[must_use]
     fn len(&self) -> usize;
 
-    /// Returns `true` if the order book contains no open orders.
+    /// Returns whether the book contains no open orders.
     #[must_use]
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
-    /// Clears the order book, removing all orders.
+    /// Removes all open orders.
     fn clear(&mut self);
 
-    /// Returns an iterator over all orders in the order book.
-    fn iter<'book>(&'book self) -> impl Iterator<Item = &'book OrderType>
-    where
-        OrderType: 'book,
-    {
+    /// Returns all open orders, with bids followed by asks.
+    fn iter(&self) -> impl Iterator<Item = &Self::Order> {
         self.bids().chain(self.asks())
     }
 
-    /// Returns a reference to an order by id.
-    fn get(&self, order_id: OrderType::OrderId) -> Option<&OrderType> {
+    /// Returns an open order by identifier.
+    fn get(&self, order_id: &<Self::Order as Order>::OrderId) -> Option<&Self::Order> {
         self.iter().find(|order| order.id() == order_id)
     }
 
-    /// Returns `true` if the order book contains an order with the given id.
-    fn contains(&self, order_id: OrderType::OrderId) -> bool {
+    /// Returns whether an open order has the supplied identifier.
+    fn contains(&self, order_id: &<Self::Order as Order>::OrderId) -> bool {
         self.get(order_id).is_some()
     }
 
-    /// Returns an iterator over the bids from best to worst.
-    fn bids<'book>(&'book self) -> impl Iterator<Item = &'book OrderType>
-    where
-        OrderType: 'book;
+    /// Returns bids from best to worst, preserving time priority at each price.
+    fn bids(&self) -> impl Iterator<Item = &Self::Order>;
 
-    /// Returns an iterator over the asks from best to worst.
-    fn asks<'book>(&'book self) -> impl Iterator<Item = &'book OrderType>
-    where
-        OrderType: 'book;
+    /// Returns asks from best to worst, preserving time priority at each price.
+    fn asks(&self) -> impl Iterator<Item = &Self::Order>;
 
     /// Returns the bid with the highest price.
     #[must_use]
-    fn best_bid(&self) -> Option<&OrderType> {
+    fn best_bid(&self) -> Option<&Self::Order> {
         self.bids().next()
     }
 
     /// Returns the ask with the lowest price.
     #[must_use]
-    fn best_ask(&self) -> Option<&OrderType> {
+    fn best_ask(&self) -> Option<&Self::Order> {
         self.asks().next()
     }
 
-    /// Adds a new order to the order book and returns a slice of fills.
-    /// Order id should be unique for each new order.
+    /// Submits an order and returns the fills generated while matching it.
     ///
-    /// Orders with zero quantity are still added.
-    fn add(&mut self, order: OrderType) -> &[Fill<OrderType>];
+    /// The returned slice is owned by the book and remains valid until the next mutable operation.
+    /// Order identifiers and quantity validation are the caller's responsibility.
+    fn submit(&mut self, order: Self::Order) -> &[Fill<Self::Order>];
 
-    /// Removes an order by id.
-    fn remove(&mut self, order_id: OrderType::OrderId) -> Option<OrderType>;
+    /// Cancels and returns an open order by identifier.
+    fn cancel(&mut self, order_id: &<Self::Order as Order>::OrderId) -> Option<Self::Order>;
 
-    /// Modifies the quantity of an order by order id.
-    /// Quantity must be less than the current order quantity.
-    /// Returns `true` if the order's quantity was modified.
-    fn modify(&mut self, order_id: OrderType::OrderId, quantity: OrderType::Quantity) -> bool;
+    /// Reduces an open order to a new total quantity without changing its priority.
+    fn reduce(
+        &mut self,
+        order_id: &<Self::Order as Order>::OrderId,
+        new_quantity: <Self::Order as Order>::Quantity,
+    ) -> Result<(), ReduceError>;
 }

@@ -1,26 +1,34 @@
-//! Order trait for orders in an order book.
-use core::hash::Hash;
+//! Orders accepted by an order book.
+
 use core::ops::Sub;
 
-/// An order in an order book.
+/// An order accepted by an order book.
+///
+/// Implementations retain ownership of their domain types and any additional order data. The book
+/// only requires the operations needed to compare and reduce limit orders.
 pub trait Order: Clone {
-    type OrderId: Eq + Hash;
-    type Quantity: Ord + Sub<Output = Self::Quantity>;
+    /// The order identifier type.
+    type OrderId: Eq;
+    /// The order quantity type.
+    type Quantity: Clone + Ord + Sub<Output = Self::Quantity>;
+    /// The order price type.
     type Price: Ord;
 
-    fn id(&self) -> Self::OrderId;
+    /// Returns the order's unique identifier.
+    fn id(&self) -> &Self::OrderId;
 
-    fn quantity(&self) -> Self::Quantity;
+    /// Returns the order's open quantity.
+    fn quantity(&self) -> &Self::Quantity;
 
-    fn price(&self) -> Self::Price;
+    /// Returns the order's limit price.
+    fn price(&self) -> &Self::Price;
 
-    /// Returns `true` if the order is a buy order, `false` if it is a sell order.
+    /// Returns `true` for a buy order and `false` for a sell order.
     fn is_buy(&self) -> bool;
 
+    /// Replaces the order's open quantity.
+    ///
+    /// Order book implementations use this while matching. Users should submit changes through the
+    /// order book so its invariants remain intact.
     fn set_quantity(&mut self, quantity: Self::Quantity);
-
-    #[expect(clippy::arithmetic_side_effects)]
-    fn reduce_quantity(&mut self, quantity: Self::Quantity) {
-        self.set_quantity(self.quantity() - quantity);
-    }
 }
