@@ -1,4 +1,4 @@
-use crate::{Fill, Order, OrderBook, ReduceError, SimpleOrder, VecBook};
+use crate::{Fill, LevelBook, Order, OrderBook, ReduceError, SimpleOrder, VecBook};
 
 type Book = VecBook<SimpleOrder>;
 
@@ -49,6 +49,50 @@ fn full(maker: SimpleOrder) -> Fill<SimpleOrder> {
 
 fn partial(maker: SimpleOrder, quantity: u32) -> Fill<SimpleOrder> {
     Fill::Partial { maker, quantity }
+}
+
+fn assert_same_state(vecbook: &Book, levelbook: &LevelBook<SimpleOrder>) {
+    assert_eq!(levelbook.len(), vecbook.len());
+    assert_eq!(
+        levelbook.bids().copied().collect::<Vec<_>>(),
+        vecbook.bids().copied().collect::<Vec<_>>()
+    );
+    assert_eq!(
+        levelbook.asks().copied().collect::<Vec<_>>(),
+        vecbook.asks().copied().collect::<Vec<_>>()
+    );
+}
+
+fn submit_both(vecbook: &mut Book, levelbook: &mut LevelBook<SimpleOrder>, order: SimpleOrder) {
+    let expected = vecbook.submit(order).to_vec();
+    let actual = levelbook.submit(order).to_vec();
+    assert_eq!(actual, expected);
+    assert_same_state(vecbook, levelbook);
+}
+
+#[test]
+fn levelbook_matches_vecbook_across_mixed_operations() {
+    let mut vecbook = Book::new();
+    let mut levelbook = LevelBook::new();
+
+    for order in [
+        SimpleOrder::buy(0, 4, 99),
+        SimpleOrder::buy(1, 3, 100),
+        SimpleOrder::buy(2, 2, 100),
+        SimpleOrder::sell(3, 2, 101),
+        SimpleOrder::sell(4, 5, 101),
+        SimpleOrder::sell(5, 3, 102),
+    ] {
+        submit_both(&mut vecbook, &mut levelbook, order);
+    }
+
+    assert_eq!(levelbook.cancel(&4), vecbook.cancel(&4));
+    assert_eq!(levelbook.reduce(&1, 2), vecbook.reduce(&1, 2));
+    assert_same_state(&vecbook, &levelbook);
+
+    submit_both(&mut vecbook, &mut levelbook, SimpleOrder::buy(6, 4, 102));
+    submit_both(&mut vecbook, &mut levelbook, SimpleOrder::sell(7, 6, 99));
+    submit_both(&mut vecbook, &mut levelbook, SimpleOrder::buy(8, 10, 103));
 }
 
 #[test]

@@ -21,6 +21,12 @@ let fills = book.submit(SimpleOrder::buy(3, 6, 6));
 assert_eq!(fills, [Fill::Full(maker)]);
 ```
 
+## Implementations
+
+- `VecBook` is a compact reference implementation backed by sorted vectors.
+- `LevelBook` stores price levels in balanced trees, orders in generational vector arenas, and an
+  `FxHashMap` identifier index for direct cancellation, reduction, and lookup.
+
 ## Design
 
 - Generic over the application's order, identifier, quantity, and price types.

@@ -1,21 +1,26 @@
 [package]
 name = "lobster"
 version = "0.1.0"
-description = "Limit order book library."
+categories = ["data-structures", "simulation"]
 edition = "2021"
-rust-version = "1.75"
+keywords = ["orderbook", "trading", "finance"]
 license = "MIT"
 repository = "https://github.com/chariotsofiron/lobster"
-keywords = ["orderbook", "trading", "finance"]
-categories = ["data-structures", "simulation"]
+rust-version = "1.75"
+description = "Limit order book library."
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+rustc-hash = "2.1.1"
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }
 
 [[bench]]
 name = "quantcup"
+harness = false
+
+[[bench]]
+name = "synthetic"
 harness = false

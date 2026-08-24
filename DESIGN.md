@@ -32,8 +32,9 @@ open can query the book by its identifier after processing the fills.
 ## Identifier uniqueness
 
 Order identifiers are expected to be unique, but the book does not enforce this. Identifier
-allocation and uniqueness belong to the surrounding exchange infrastructure. This also avoids
-requiring every implementation to maintain an ID index.
+allocation and uniqueness belong to the surrounding exchange infrastructure. Implementations are
+not required to maintain an ID index, although identifiers are hashable so optimized implementations
+can do so.
 
 ## Quantity policy
 
@@ -49,6 +50,20 @@ distinct operation.
 `Default` and `FromIterator` are not requirements of the `OrderBook` trait. Construction is separate
 from matching behavior, and collecting an iterator should not unexpectedly execute orders or panic
 when they cross.
+
+## Indexed price levels
+
+`LevelBook` follows the conventional tree-of-levels and linked-orders design. Separate bid and ask
+`BTreeMap`s map prices to level handles. Each level is a FIFO doubly linked list of order handles,
+and an `FxHashMap` maps application order identifiers directly to those handles.
+
+Orders and levels live in private generational vector arenas. Handles remain stable while occupied,
+removed values can be moved out without cloning, and stale handles cannot refer to reused slots.
+Cancellation unlinks an order immediately rather than leaving tombstones or periodically compacting
+queues.
+
+The identifier index uses a fast, non-cryptographic hasher intended for trusted exchange input.
+`LevelBook` requires cloneable identifiers and prices because its indexes own those keys.
 
 ## Other order behavior
 

@@ -1,14 +1,14 @@
 //! Orders accepted by an order book.
 
-use core::ops::Sub;
+use core::{hash::Hash, ops::Sub};
 
 /// An order accepted by an order book.
 ///
 /// Implementations retain ownership of their domain types and any additional order data. The book
 /// only requires the operations needed to compare and reduce limit orders.
 pub trait Order: Clone {
-    /// The order identifier type.
-    type OrderId: Eq;
+    /// The order identifier type. Hashing supports indexed order book implementations.
+    type OrderId: Eq + Hash;
     /// The order quantity type.
     type Quantity: Clone + Ord + Sub<Output = Self::Quantity>;
     /// The order price type.
