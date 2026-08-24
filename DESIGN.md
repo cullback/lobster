@@ -36,14 +36,20 @@ allocation and uniqueness belong to the surrounding exchange infrastructure. Imp
 not required to maintain an ID index, although identifiers are hashable so optimized implementations
 can do so.
 
-## Quantity policy
+## Quantity and price policy
 
-The book does not define or validate zero, negative, or otherwise invalid quantities. Quantity policy
-belongs to the surrounding exchange infrastructure, just like identifier uniqueness. Matching only
-requires quantities to be ordered and subtractable.
+Quantities represent non-negative magnitudes. Zero is valid: it may rest or participate in matching,
+and fills may consequently have zero executed quantity. The book cannot express non-negativity in
+its generic bounds and does not validate it, so callers using a signed or otherwise unrestricted
+quantity type must reject negative values. When one quantity is greater than another, subtraction
+must produce their valid non-negative remainder.
 
-Reducing an order requires a quantity lower than its current quantity. Cancellation remains a
-distinct operation.
+Reducing an order requires a non-negative quantity lower than its current quantity; reducing to zero
+is valid. Cancellation remains a distinct operation.
+
+Prices have no corresponding sign or numeric requirement. A price may be any application-owned type
+with a lawful, stable total ordering; that ordering alone determines priority and whether prices
+cross.
 
 ## Construction
 

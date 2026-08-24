@@ -58,13 +58,17 @@ pub trait OrderBook: Default {
     /// Submits an order and returns the fills generated while matching it.
     ///
     /// The returned slice is owned by the book and remains valid until the next mutable operation.
-    /// Order identifiers and quantity validation are the caller's responsibility.
+    /// The caller must supply an identifier not currently open in the book and a non-negative
+    /// quantity. Zero quantity is valid. These requirements are not validated by the book.
     fn submit(&mut self, order: Self::Order) -> &[Fill<Self::Order>];
 
     /// Cancels and returns an open order by identifier.
     fn cancel(&mut self, order_id: &<Self::Order as Order>::OrderId) -> Option<Self::Order>;
 
-    /// Reduces an open order to a new total quantity without changing its priority.
+    /// Reduces an open order to a new non-negative total quantity without changing its priority.
+    ///
+    /// Zero quantity is valid. The book checks that the new quantity is lower than the current
+    /// quantity but otherwise leaves quantity validation to the caller.
     fn reduce(
         &mut self,
         order_id: &<Self::Order as Order>::OrderId,
