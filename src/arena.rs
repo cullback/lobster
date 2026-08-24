@@ -1,6 +1,7 @@
 //! A small typed generational arena used by indexed book implementations.
 
 use core::fmt;
+use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
 use core::mem;
 
@@ -35,6 +36,13 @@ impl<Tag> PartialEq for Key<Tag> {
 }
 
 impl<Tag> Eq for Key<Tag> {}
+
+impl<Tag> Hash for Key<Tag> {
+    fn hash<HasherType: Hasher>(&self, state: &mut HasherType) {
+        self.index.hash(state);
+        self.generation.hash(state);
+    }
+}
 
 impl<Tag> fmt::Debug for Key<Tag> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -78,6 +86,11 @@ impl<T, Tag> Arena<T, Tag> {
 
     pub(crate) const fn len(&self) -> usize {
         self.len
+    }
+
+    #[cfg(test)]
+    pub(crate) fn capacity(&self) -> usize {
+        self.slots.len()
     }
 
     pub(crate) const fn is_empty(&self) -> bool {
@@ -176,6 +189,7 @@ mod tests {
 
         let new_key = arena.insert("new");
 
+        assert_eq!(arena.capacity(), 1);
         assert_ne!(old_key, new_key);
         assert_eq!(arena.get(old_key), None);
         assert_eq!(arena.get(new_key), Some(&"new"));

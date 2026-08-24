@@ -26,6 +26,8 @@ assert_eq!(fills, [Fill::Full(maker)]);
 - `VecBook` is a compact reference implementation backed by sorted vectors.
 - `LevelBook` stores price levels in balanced trees, orders in generational vector arenas, and an
   `FxHashMap` identifier index for direct cancellation, reduction, and lookup.
+- `FlatLevelBook` keeps the same indexed FIFO structure but stores price levels in sorted contiguous
+  vectors, targeting books with relatively few active levels.
 
 ## Design
 
@@ -34,5 +36,11 @@ assert_eq!(fills, [Fill::Full(maker)]);
 - Price-time priority with bids and asks exposed from best to worst.
 - Limit orders only. Other order behaviors can be implemented by exchange infrastructure around the
   book.
-- Order identifier uniqueness is a caller responsibility; the book does not maintain a separate ID
-  index.
+- Order identifier uniqueness is a caller responsibility; indexed implementations assume it.
+
+## Development
+
+Enter the reproducible development shell with `nix develop` and run checks with `just check`.
+Benchmark recipes compile with `-C target-cpu=native`; their binaries and results are specific to
+the host CPU. See [`benches/README.md`](benches/README.md) for synthetic, QuantCup, focused
+operation, memory-reuse, and hasher experiments.

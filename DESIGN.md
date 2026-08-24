@@ -65,6 +65,20 @@ queues.
 The identifier index uses a fast, non-cryptographic hasher intended for trusted exchange input.
 `LevelBook` requires cloneable identifiers and prices because its indexes own those keys.
 
+`FlatLevelBook` retains the same arenas, identifier index, and linked FIFO levels but replaces each
+price tree with a sorted vector. Both sides are stored worst-to-best, so matching and removal at the
+best level operate at the vector's end. This trades linear movement when inserting or removing a
+non-best level for contiguous searches and lower fixed overhead on books with relatively few levels.
+
+## Validation and measurement
+
+`VecBook` is the differential reference for `LevelBook` and `FlatLevelBook`. Deterministic mixed
+traces, property-based action sequences, real QuantCup replay, and internal arena/link invariants
+check equivalent behavior.
+Benchmarks generate or load traces before timing and exclude prepared-book setup and teardown.
+Focused experiments cover operation scaling, arena reuse, large-order cloning, and identifier
+hashers.
+
 ## Other order behavior
 
 The matching engine accepts limit orders only. Market, immediate-or-cancel, post-only, and similar

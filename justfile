@@ -36,10 +36,18 @@ test:
 build:
     cargo build --release
 
-# Run all benchmarks
+# Run all benchmarks, optimized for the host CPU
 bench *args:
-    cargo bench -- {{ args }}
+    RUSTFLAGS="-C target-cpu=native" cargo bench -- {{ args }}
 
-# Run the synthetic workload experiment
+# Run the synthetic workload experiment, optimized for the host CPU
 bench-synthetic *args:
-    cargo bench --bench synthetic -- {{ args }}
+    RUSTFLAGS="-C target-cpu=native" cargo bench --bench synthetic -- {{ args }}
+
+# Replay the QuantCup trace, optimized for the host CPU
+bench-quantcup *args:
+    RUSTFLAGS="-C target-cpu=native" cargo bench --bench quantcup -- {{ args }}
+
+# Run focused operation and hasher experiments
+bench-operations *args:
+    RUSTFLAGS="-C target-cpu=native" cargo bench --bench operations -- {{ args }}

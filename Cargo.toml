@@ -16,6 +16,11 @@ rustc-hash = "2.1.1"
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }
+proptest = "1.7.0"
+
+[profile.bench]
+codegen-units = 1
+lto = "thin"
 
 [[bench]]
 name = "quantcup"
@@ -23,4 +28,8 @@ harness = false
 
 [[bench]]
 name = "synthetic"
+harness = false
+
+[[bench]]
+name = "operations"
 harness = false

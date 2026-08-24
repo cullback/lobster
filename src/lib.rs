@@ -5,6 +5,7 @@
 mod arena;
 mod error;
 mod fill;
+mod flatbook;
 mod levelbook;
 mod order;
 mod orderbook;
@@ -16,6 +17,7 @@ mod test;
 
 pub use error::ReduceError;
 pub use fill::Fill;
+pub use flatbook::FlatLevelBook;
 pub use levelbook::LevelBook;
 pub use order::Order;
 pub use orderbook::OrderBook;

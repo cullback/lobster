@@ -1,9 +1,7 @@
-//! A price-level order book backed by indexed arenas.
+//! A flat price-level order book backed by indexed arenas.
 
 use core::fmt;
 use core::ops::Sub;
-use std::collections::BTreeMap;
-
 use rustc_hash::FxHashMap;
 
 use crate::arena::{Arena, Key};
@@ -33,6 +31,69 @@ struct LevelNode {
     orders: usize,
 }
 
+#[derive(Clone, Debug)]
+struct FlatLevels<Price> {
+    // Both sides are stored worst-to-best, making the best level the final entry. Bids therefore
+    // use ascending prices and asks use descending prices.
+    entries: Vec<(Price, LevelKey)>,
+}
+
+impl<Price: Ord> FlatLevels<Price> {
+    fn new() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
+
+    fn search(&self, price: &Price, is_buy: bool) -> Result<usize, usize> {
+        if is_buy {
+            self.entries
+                .binary_search_by(|(candidate, _)| candidate.cmp(price))
+        } else {
+            self.entries
+                .binary_search_by(|(candidate, _)| price.cmp(candidate))
+        }
+    }
+
+    fn get(&self, price: &Price, is_buy: bool) -> Option<LevelKey> {
+        self.search(price, is_buy)
+            .ok()
+            .map(|index| self.entries[index].1)
+    }
+
+    fn insert(&mut self, price: Price, level: LevelKey, is_buy: bool) {
+        let index = self
+            .search(&price, is_buy)
+            .expect_err("price level was already indexed");
+        self.entries.insert(index, (price, level));
+    }
+
+    fn remove(&mut self, price: &Price, is_buy: bool) -> Option<LevelKey> {
+        let index = self.search(price, is_buy).ok()?;
+        Some(self.entries.remove(index).1)
+    }
+
+    fn best(&self) -> Option<LevelKey> {
+        self.entries.last().map(|(_, level)| *level)
+    }
+
+    fn best_first(&self) -> impl Iterator<Item = (&Price, LevelKey)> {
+        self.entries
+            .iter()
+            .rev()
+            .map(|(price, level)| (price, *level))
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    fn clear(&mut self) {
+        self.entries.clear();
+    }
+}
+
 struct LevelOrders<'book, OrderType: Order> {
     arena: &'book Arena<OrderNode<OrderType>, OrderTag>,
     next: Option<OrderKey>,
@@ -50,28 +111,30 @@ impl<'book, OrderType: Order> Iterator for LevelOrders<'book, OrderType> {
 
 /// A price-time-priority order book organized into indexed price levels.
 ///
-/// Each price level is a doubly linked list of arena-backed orders. An order identifier hash index
-/// provides direct access for cancellation, reduction, and lookup. This implementation requires
-/// cloneable identifiers and prices because it owns keys in those indexes. The identifier index
-/// uses a fast, non-cryptographic hasher intended for trusted exchange input.
-pub struct LevelBook<OrderType: Order> {
+/// Prices are held in sorted contiguous vectors, with the best price at the end of each side. Each
+/// level is a doubly linked list of arena-backed orders, and an order identifier hash index provides
+/// direct access for cancellation, reduction, and lookup. This implementation is intended for books
+/// with relatively few active price levels. It requires cloneable identifiers and prices because it
+/// owns keys in those indexes. The identifier index uses a fast, non-cryptographic hasher intended
+/// for trusted exchange input.
+pub struct FlatLevelBook<OrderType: Order> {
     orders: Arena<OrderNode<OrderType>, OrderTag>,
     levels: Arena<LevelNode, LevelTag>,
-    bids: BTreeMap<OrderType::Price, LevelKey>,
-    asks: BTreeMap<OrderType::Price, LevelKey>,
+    bids: FlatLevels<OrderType::Price>,
+    asks: FlatLevels<OrderType::Price>,
     by_id: FxHashMap<OrderType::OrderId, OrderKey>,
     fills: Vec<Fill<OrderType>>,
 }
 
-impl<OrderType: Order> LevelBook<OrderType> {
+impl<OrderType: Order> FlatLevelBook<OrderType> {
     /// Creates an empty order book.
     #[must_use]
     pub fn new() -> Self {
         Self {
             orders: Arena::new(),
             levels: Arena::new(),
-            bids: BTreeMap::new(),
-            asks: BTreeMap::new(),
+            bids: FlatLevels::new(),
+            asks: FlatLevels::new(),
             by_id: FxHashMap::default(),
             fills: Vec::new(),
         }
@@ -93,8 +156,8 @@ impl<OrderType: Order> LevelBook<OrderType> {
 
         let mut reachable = HashSet::with_capacity(self.orders.len());
         for (is_buy, levels) in [(true, &self.bids), (false, &self.asks)] {
-            for (price, level_key) in levels {
-                let level = self.levels.get(*level_key).expect("level key was invalid");
+            for (price, level_key) in levels.best_first() {
+                let level = self.levels.get(level_key).expect("level key was invalid");
                 assert!(level.orders > 0);
                 assert!(level.head.is_some());
                 assert!(level.tail.is_some());
@@ -105,7 +168,7 @@ impl<OrderType: Order> LevelBook<OrderType> {
                 while let Some(order_key) = current {
                     assert!(reachable.insert(order_key), "order was linked twice");
                     let node = self.orders.get(order_key).expect("order link was invalid");
-                    assert_eq!(node.level, *level_key);
+                    assert_eq!(node.level, level_key);
                     assert_eq!(node.previous, previous);
                     assert_eq!(node.order.is_buy(), is_buy);
                     assert!(node.order.price() == price);
@@ -128,11 +191,9 @@ impl<OrderType: Order> LevelBook<OrderType> {
             assert!(node.order.id() == order_id);
         }
 
-        if let (Some((_, bid_level)), Some((_, ask_level))) =
-            (self.bids.last_key_value(), self.asks.first_key_value())
-        {
-            let bid_key = self.levels.get(*bid_level).and_then(|level| level.head);
-            let ask_key = self.levels.get(*ask_level).and_then(|level| level.head);
+        if let (Some(bid_level), Some(ask_level)) = (self.bids.best(), self.asks.best()) {
+            let bid_key = self.levels.get(bid_level).and_then(|level| level.head);
+            let ask_key = self.levels.get(ask_level).and_then(|level| level.head);
             let bid = self.orders.get(bid_key.expect("best bid was missing"));
             let ask = self.orders.get(ask_key.expect("best ask was missing"));
             assert!(
@@ -149,13 +210,13 @@ impl<OrderType: Order> LevelBook<OrderType> {
     }
 }
 
-impl<OrderType: Order> Default for LevelBook<OrderType> {
+impl<OrderType: Order> Default for FlatLevelBook<OrderType> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<OrderType> Clone for LevelBook<OrderType>
+impl<OrderType> Clone for FlatLevelBook<OrderType>
 where
     OrderType: Order,
     OrderType::OrderId: Clone,
@@ -173,7 +234,7 @@ where
     }
 }
 
-impl<OrderType> fmt::Debug for LevelBook<OrderType>
+impl<OrderType> fmt::Debug for FlatLevelBook<OrderType>
 where
     OrderType: Order + fmt::Debug,
     OrderType::OrderId: Clone,
@@ -181,14 +242,14 @@ where
 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("LevelBook")
+            .debug_struct("FlatLevelBook")
             .field("bids", &self.bids().collect::<Vec<_>>())
             .field("asks", &self.asks().collect::<Vec<_>>())
             .finish()
     }
 }
 
-impl<OrderType> OrderBook for LevelBook<OrderType>
+impl<OrderType> OrderBook for FlatLevelBook<OrderType>
 where
     OrderType: Order,
     OrderType::OrderId: Clone,
@@ -226,15 +287,14 @@ where
 
     fn bids(&self) -> impl Iterator<Item = &OrderType> {
         self.bids
-            .values()
-            .rev()
-            .flat_map(|level| self.level_orders(*level))
+            .best_first()
+            .flat_map(|(_, level)| self.level_orders(level))
     }
 
     fn asks(&self) -> impl Iterator<Item = &OrderType> {
         self.asks
-            .values()
-            .flat_map(|level| self.level_orders(*level))
+            .best_first()
+            .flat_map(|(_, level)| self.level_orders(level))
     }
 
     fn submit(&mut self, mut taker: OrderType) -> &[Fill<OrderType>] {
@@ -311,7 +371,7 @@ where
     }
 }
 
-impl<OrderType> LevelBook<OrderType>
+impl<OrderType> FlatLevelBook<OrderType>
 where
     OrderType: Order,
     OrderType::OrderId: Clone,
@@ -319,9 +379,9 @@ where
 {
     fn best_maker(&self, taker_is_buy: bool) -> Option<OrderKey> {
         let level_key = if taker_is_buy {
-            *self.asks.first_key_value()?.1
+            self.asks.best()?
         } else {
-            *self.bids.last_key_value()?.1
+            self.bids.best()?
         };
         self.levels.get(level_key)?.head
     }
@@ -337,18 +397,18 @@ where
     fn insert_resting(&mut self, order: OrderType) {
         let order_id = order.id().clone();
         let level_key = if order.is_buy() {
-            if let Some(level) = self.bids.get(order.price()) {
-                *level
+            if let Some(level) = self.bids.get(order.price(), true) {
+                level
             } else {
                 let level = self.levels.insert(LevelNode::default());
-                self.bids.insert(order.price().clone(), level);
+                self.bids.insert(order.price().clone(), level, true);
                 level
             }
-        } else if let Some(level) = self.asks.get(order.price()) {
-            *level
+        } else if let Some(level) = self.asks.get(order.price(), false) {
+            level
         } else {
             let level = self.levels.insert(LevelNode::default());
-            self.asks.insert(order.price().clone(), level);
+            self.asks.insert(order.price().clone(), level, false);
             level
         };
 
@@ -424,9 +484,9 @@ where
 
         if remove_level {
             if node.order.is_buy() {
-                self.bids.remove(node.order.price());
+                self.bids.remove(node.order.price(), true);
             } else {
-                self.asks.remove(node.order.price());
+                self.asks.remove(node.order.price(), false);
             }
             self.levels
                 .remove(level_key)
