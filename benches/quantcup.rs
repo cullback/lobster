@@ -10,6 +10,14 @@ enum Action {
     Cancel(u32),
 }
 
+fn usize_to_u64(value: usize) -> u64 {
+    u64::try_from(value).expect("count did not fit u64")
+}
+
+fn usize_to_f64(value: usize) -> f64 {
+    f64::from(u32::try_from(value).expect("trace count did not fit u32"))
+}
+
 fn load_actions() -> Vec<Action> {
     let file = read_to_string("benches/orders.csv").expect("failed to open QuantCup trace");
     let mut actions = Vec::with_capacity(35_760);
@@ -57,7 +65,7 @@ where
             }
         }
     }
-    checksum.wrapping_add(book.len() as u64)
+    checksum.wrapping_add(usize_to_u64(book.len()))
 }
 
 fn quantcup_benchmarks(criterion: &mut Criterion) {
@@ -94,14 +102,14 @@ fn quantcup_benchmarks(criterion: &mut Criterion) {
     eprintln!(
         "QuantCup trace: actions={} submit={:.1}% cancel={:.1}% final_orders={}",
         actions.len(),
-        100.0 * submits as f64 / actions.len() as f64,
-        100.0 * (actions.len() - submits) as f64 / actions.len() as f64,
+        100.0 * usize_to_f64(submits) / usize_to_f64(actions.len()),
+        100.0 * usize_to_f64(actions.len() - submits) / usize_to_f64(actions.len()),
         vecbook.len(),
     );
 
     let mut group = criterion.benchmark_group("quantcup");
     group.sample_size(50);
-    group.throughput(Throughput::Elements(actions.len() as u64));
+    group.throughput(Throughput::Elements(usize_to_u64(actions.len())));
     group.bench_function(BenchmarkId::from_parameter("vecbook"), |bencher| {
         bencher.iter_batched_ref(
             VecBook::default,

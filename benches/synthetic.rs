@@ -94,6 +94,18 @@ impl ActiveOrders {
     }
 }
 
+fn usize_to_u32(value: usize) -> u32 {
+    u32::try_from(value).expect("trace count did not fit u32")
+}
+
+fn usize_to_u64(value: usize) -> u64 {
+    u64::try_from(value).expect("trace count did not fit u64")
+}
+
+fn usize_to_f64(value: usize) -> f64 {
+    f64::from(usize_to_u32(value))
+}
+
 struct Rng(u64);
 
 impl Rng {
@@ -112,12 +124,13 @@ impl Rng {
 
     fn range(&mut self, upper: u32) -> u32 {
         debug_assert!(upper > 0);
-        (self.next_u64() % u64::from(upper)) as u32
+        u32::try_from(self.next_u64() % u64::from(upper)).expect("value reduced modulo u32 bound")
     }
 
     fn index(&mut self, upper: usize) -> usize {
         debug_assert!(upper > 0);
-        self.next_u64() as usize % upper
+        let upper = u64::try_from(upper).expect("index bound did not fit u64");
+        usize::try_from(self.next_u64() % upper).expect("index did not fit usize")
     }
 
     fn chance(&mut self, percent: u32) -> bool {
@@ -435,7 +448,7 @@ fn collect_stats(initial_book: &VecBook<SimpleOrder>, actions: &[Action]) -> Tra
                 stats.marketable += usize::from(is_marketable(&book, order));
                 let mut completed = Vec::new();
                 let fills = book.submit(order);
-                stats.fills_per_submit.push(fills.len() as u32);
+                stats.fills_per_submit.push(usize_to_u32(fills.len()));
                 for fill in fills {
                     match fill {
                         Fill::Full(maker) => {
@@ -447,7 +460,7 @@ fn collect_stats(initial_book: &VecBook<SimpleOrder>, actions: &[Action]) -> Tra
                 }
                 for order_id in completed {
                     if let Some(birth) = births.remove(&order_id) {
-                        stats.lifetimes.push((event - birth) as u32);
+                        stats.lifetimes.push(usize_to_u32(event - birth));
                     }
                 }
                 if book.contains(&order.id()) {
@@ -461,7 +474,7 @@ fn collect_stats(initial_book: &VecBook<SimpleOrder>, actions: &[Action]) -> Tra
                     .push(distance_from_best(&book, order_id));
                 if book.cancel(&order_id).is_some() {
                     if let Some(birth) = births.remove(&order_id) {
-                        stats.lifetimes.push((event - birth) as u32);
+                        stats.lifetimes.push(usize_to_u32(event - birth));
                     }
                 }
             }
@@ -504,11 +517,12 @@ fn print_stats(name: &str, mut stats: TraceStats) {
          marketable={:.1}% cancel_exit_share={:.1}% fills={fills} (full={}, partial={}) \
          fills_p95={} live_mean={} live_max={} levels_max={} qty_p50/p95={}/{} \
          lifetime_p50/p95={}/{} spread_p50={} cancel_distance_p50={}",
-        100.0 * stats.submits as f64 / actions as f64,
-        100.0 * stats.cancels as f64 / actions as f64,
-        100.0 * stats.reductions as f64 / actions as f64,
-        100.0 * stats.marketable as f64 / stats.submits.max(1) as f64,
-        100.0 * stats.cancels as f64 / (stats.cancels + stats.full_fills).max(1) as f64,
+        100.0 * usize_to_f64(stats.submits) / usize_to_f64(actions),
+        100.0 * usize_to_f64(stats.cancels) / usize_to_f64(actions),
+        100.0 * usize_to_f64(stats.reductions) / usize_to_f64(actions),
+        100.0 * usize_to_f64(stats.marketable) / usize_to_f64(stats.submits.max(1)),
+        100.0 * usize_to_f64(stats.cancels)
+            / usize_to_f64((stats.cancels + stats.full_fills).max(1)),
         stats.full_fills,
         stats.partial_fills,
         fills_p95,
@@ -533,7 +547,7 @@ where
         match *action {
             Action::Submit(order) => {
                 let fills = book.submit(order);
-                checksum = checksum.wrapping_add(fills.len() as u64);
+                checksum = checksum.wrapping_add(usize_to_u64(fills.len()));
                 for fill in fills {
                     checksum = checksum
                         .wrapping_mul(31)
@@ -653,7 +667,7 @@ fn synthetic_benchmarks(criterion: &mut Criterion) {
             "FlatLevelBook final asks diverged",
         );
 
-        group.throughput(Throughput::Elements(actions.len() as u64));
+        group.throughput(Throughput::Elements(usize_to_u64(actions.len())));
         group.bench_function(BenchmarkId::new(workload.name, "vecbook"), |bencher| {
             bencher.iter_batched_ref(
                 || initial_vecbook.clone(),

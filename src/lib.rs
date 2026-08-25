@@ -1,6 +1,18 @@
 #![doc = include_str!("../README.md")]
-#![forbid(unsafe_code)]
-#![warn(missing_docs)]
+#![warn(missing_docs, clippy::pedantic)]
+#![cfg_attr(
+    not(test),
+    warn(
+        clippy::dbg_macro,
+        clippy::float_arithmetic,
+        clippy::integer_division,
+        clippy::modulo_arithmetic,
+        clippy::panic,
+        clippy::todo,
+        clippy::unimplemented,
+        clippy::unwrap_used,
+    )
+)]
 
 mod arena;
 mod error;

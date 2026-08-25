@@ -67,6 +67,11 @@ pub trait OrderBook {
     ///
     /// Zero quantity is valid. The book checks that the new quantity is lower than the current
     /// quantity but otherwise leaves quantity validation to the caller.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReduceError::NotFound`] when the identifier is not open and
+    /// [`ReduceError::NotReduced`] when the new quantity is not lower than the current quantity.
     fn reduce(
         &mut self,
         order_id: &<Self::Order as Order>::OrderId,

@@ -11,6 +11,12 @@ description = "Limit order book library."
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+as_conversions = "deny"
+
 [dependencies]
 rustc-hash = "2.1.1"
 
