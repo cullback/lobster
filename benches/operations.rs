@@ -114,6 +114,7 @@ impl Hasher for IdentityHasher {
 
 type IdentityHashMap<Key, Value> = HashMap<Key, Value, BuildHasherDefault<IdentityHasher>>;
 
+#[allow(clippy::too_many_lines)]
 fn operation_benchmarks(criterion: &mut Criterion) {
     let mut group = criterion.benchmark_group("operations");
     group.sample_size(20);

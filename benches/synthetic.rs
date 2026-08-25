@@ -275,6 +275,7 @@ fn record_submit(
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn generate(config: Workload) -> (VecBook<SimpleOrder>, Vec<Action>) {
     let mut rng = Rng::new(config.seed);
     let mut book = VecBook::default();

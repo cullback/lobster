@@ -1,15 +1,12 @@
 #![doc = include_str!("../README.md")]
-#![warn(missing_docs, clippy::pedantic)]
+#![warn(missing_docs)]
 #![cfg_attr(
     not(test),
     warn(
-        clippy::dbg_macro,
         clippy::float_arithmetic,
         clippy::integer_division,
         clippy::modulo_arithmetic,
         clippy::panic,
-        clippy::todo,
-        clippy::unimplemented,
         clippy::unwrap_used,
     )
 )]

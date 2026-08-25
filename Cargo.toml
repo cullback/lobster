@@ -15,7 +15,15 @@ description = "Limit order book library."
 unsafe_code = "forbid"
 
 [lints.clippy]
+pedantic = { level = "deny", priority = -1 }
 as_conversions = "deny"
+dbg_macro = "deny"
+exit = "deny"
+panic_in_result_fn = "deny"
+string_slice = "deny"
+todo = "deny"
+unchecked_time_subtraction = "deny"
+unimplemented = "deny"
 
 [dependencies]
 rustc-hash = "2.1.1"
