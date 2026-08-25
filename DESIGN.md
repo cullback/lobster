@@ -8,6 +8,10 @@ types. Applications can retain richer domain types and arbitrary metadata on the
 The book only asks `is_buy()`. A library-owned side enum would force users to translate into a type
 that cannot represent any additional application semantics.
 
+While an order is open, `id()`, `price()`, and `is_buy()` must return stable values. `set_quantity()`
+may change only its open quantity; changing an indexed value would invalidate its ID or price-level
+entry.
+
 ## Book-owned fills
 
 Submitting an order returns a slice of fills owned by the book. The slice remains valid until the
@@ -68,12 +72,15 @@ panic when they cross.
 and an `FxHashMap` maps application order identifiers directly to those handles.
 
 Orders and levels live in private generational vector arenas. Handles remain stable while occupied,
-removed values can be moved out without cloning, and stale handles cannot refer to reused slots.
-Cancellation unlinks an order immediately rather than leaving tombstones or periodically compacting
-queues.
+removed values can be moved out without cloning, and stale handles cannot refer to reused slots. A
+handle stores a one-based `NonZeroU32` index, so `Option<Key>` occupies eight bytes while preserving
+the generation check.
 
-The identifier index uses a fast, non-cryptographic hasher intended for trusted exchange input.
-`LevelBook` requires cloneable identifiers and prices because its indexes own those keys.
+Cancellation removes the ID-index entry and obtains its arena handle in one hash-table operation,
+then unlinks the order immediately. It does not leave tombstones or periodically compact queues.
+
+Both indexed books use a fast, non-cryptographic identifier hasher intended for trusted input. They
+require cloneable identifiers and prices because their indexes own those keys.
 
 `FlatLevelBook` retains the same arenas, identifier index, and linked FIFO levels but replaces each
 price tree with a sorted vector. Both sides are stored worst-to-best, so matching and removal at the
@@ -84,10 +91,12 @@ non-best level for contiguous searches and lower fixed overhead on books with re
 
 A trait-level semantic conformance suite runs independently against every implementation. `VecBook`
 is also the differential reference for `LevelBook` and `FlatLevelBook`; deterministic mixed traces,
-property-based action sequences, real QuantCup replay, and internal arena/link invariants check
-additional equivalent behavior.
+property-based action sequences, the external simulated QuantCup command trace, and internal
+arena/link invariants check additional equivalent behavior.
+
 Benchmarks generate or load traces before timing and exclude prepared-book setup and teardown.
-Focused experiments cover operation scaling, arena reuse, large-order cloning, and identifier
+Focused experiments cover lookup, iteration, cancellation at different price levels, reduction,
+insertion, sweeping, active price-level counts, arena reuse, large-order cloning, and identifier
 hashers.
 
 ## Other order behavior
