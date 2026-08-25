@@ -36,6 +36,23 @@ exchanges with straightforward rules.
 - `FlatLevelBook` uses the same arena-backed FIFO levels and identifier index, but keeps prices in
   sorted vectors. It targets books with relatively few active price levels.
 
+## Performance
+
+On one thread of an AMD Ryzen 9 9950X, `FlatLevelBook` processes roughly 50 million
+book actions per second across the synthetic workloads. Each workload replays 100,000
+submissions, cancellations, and reductions; one submission may execute several resting orders.
+
+| Workload     | `VecBook` | `LevelBook` | `FlatLevelBook` |
+| ------------ | --------: | ----------: | --------------: |
+| Mixed        |    0.6M/s |     37.3M/s |         49.0M/s |
+| Cancel-heavy |    0.5M/s |     45.0M/s |         57.3M/s |
+| Sweep-heavy  |    2.0M/s |     36.4M/s |         42.9M/s |
+| Empirical    |    1.2M/s |     44.4M/s |         52.3M/s |
+
+These are Criterion mean throughputs measured with Rust 1.95.0 and
+`-C target-cpu=native`. Results depend on hardware, compiler, book shape, and action mix. See the
+[benchmark notes](benches/README.md) for workload definitions and commands.
+
 ## When Lobster is not a fit
 
 Choose another matching engine when order behavior must run atomically inside the matching loop and
