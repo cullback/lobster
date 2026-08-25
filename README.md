@@ -1,7 +1,52 @@
 # Lobster
 
-A small in-memory, price-time-priority limit order book in Rust. It is intended for exchanges with
-straightforward matching mechanics and order types.
+A small in-memory price-time-priority limit order book for Rust, intended as a matching core for
+exchanges with straightforward rules.
+
+## Features
+
+- `submit`: matches an order and returns its maker fills
+- `cancel`: removes an open order by identifier
+- `reduce`: lowers an order's open quantity without changing priority
+- `best_bid`, `best_ask`, and iterators inspect resting orders
+- Application-owned order, identifier, quantity, price, and side representation
+
+## Exchange policy
+
+- Immediate-or-cancel: call `submit`, then `cancel`
+- Add-liquidity-only: compare the submitted price with `best_ask` or `best_bid`
+- Stop orders: hold the order outside the book until its trigger fires
+
+## Input contract
+
+- Each open order has a unique identifier. An identifier may be reused after its previous order
+  leaves the book.
+- Quantities represent non-negative magnitudes. Zero is valid, including for fills and reductions.
+  The caller validates this requirement.
+- Subtracting a smaller quantity from a larger quantity produces a valid non-negative remainder.
+- Prices have a lawful, stable total ordering. They do not need to be numeric or positive.
+- An order's identifier, price, and side remain stable while it rests. `set_quantity` changes only
+  its quantity.
+
+## Implementations
+
+- `VecBook` is the reference implementation. It stores each side in a sorted vector.
+- `LevelBook` maps prices through balanced trees, stores orders and levels in generational vector
+  arenas, and indexes identifiers for direct lookup, cancellation, and reduction.
+- `FlatLevelBook` uses the same arena-backed FIFO levels and identifier index, but keeps prices in
+  sorted vectors. It targets books with relatively few active price levels.
+
+## When Lobster is not a fit
+
+Choose another matching engine when order behavior must run atomically inside the matching loop and
+cannot be expressed through limit submissions, cancellations, and reductions. This includes:
+
+- pro-rata, size-priority, auction, or other non-price-time matching
+- native iceberg refresh, pegged, discretionary, stop, or conditional-order state machines
+- atomic multi-leg, spread, or cross-book matching
+
+Rich order structs are supported because the book carries their fields unchanged. Matching behavior
+remains limited to price-time-priority limit orders.
 
 ## Example
 
@@ -20,29 +65,3 @@ let fills = book.submit(SimpleOrder::buy(3, 6, 6));
 
 assert_eq!(fills, [Fill::Full(maker)]);
 ```
-
-## Implementations
-
-- `VecBook` is a compact reference implementation backed by sorted vectors.
-- `LevelBook` stores price levels in balanced trees, orders in generational vector arenas, and an
-  `FxHashMap` identifier index for direct cancellation, reduction, and lookup.
-- `FlatLevelBook` keeps the same indexed FIFO structure but stores price levels in sorted contiguous
-  vectors, targeting books with relatively few active levels.
-
-## Design
-
-- Generic over the application's order, identifier, quantity, and price types.
-- Quantities are non-negative magnitudes, with zero permitted; prices need only be lawfully ordered.
-- Every implementation defaults to an empty book.
-- Fills preserve the complete resting order, including application-specific data.
-- Price-time priority with bids and asks exposed from best to worst.
-- Limit orders only. Other order behaviors can be implemented by exchange infrastructure around the
-  book.
-- Order identifier uniqueness is a caller responsibility; indexed implementations assume it.
-
-## Development
-
-Enter the reproducible development shell with `nix develop` and run checks with `just check`.
-Benchmark recipes compile with `-C target-cpu=native`; their binaries and results are specific to
-the host CPU. See [`benches/README.md`](benches/README.md) for synthetic, QuantCup, focused
-operation, memory-reuse, and hasher experiments.
