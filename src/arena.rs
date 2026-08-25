@@ -4,20 +4,30 @@ use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
 use core::mem;
+use core::num::NonZeroU32;
 
 pub(crate) struct Key<Tag> {
-    index: u32,
+    // One-based so Option<Key<Tag>> has the same layout as Key<Tag>.
+    index: NonZeroU32,
     generation: u32,
     marker: PhantomData<fn() -> Tag>,
 }
 
 impl<Tag> Key<Tag> {
-    const fn new(index: u32, generation: u32) -> Self {
+    fn new(index: u32, generation: u32) -> Self {
+        let index = index
+            .checked_add(1)
+            .and_then(NonZeroU32::new)
+            .expect("arena exhausted u32 keys");
         Self {
             index,
             generation,
             marker: PhantomData,
         }
+    }
+
+    const fn slot_index(self) -> u32 {
+        self.index.get() - 1
     }
 }
 
@@ -48,7 +58,7 @@ impl<Tag> fmt::Debug for Key<Tag> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_tuple("Key")
-            .field(&self.index)
+            .field(&self.slot_index())
             .field(&self.generation)
             .finish()
     }
@@ -123,21 +133,21 @@ impl<T, Tag> Arena<T, Tag> {
     }
 
     pub(crate) fn get(&self, key: Key<Tag>) -> Option<&T> {
-        match self.slots.get(key.index as usize)? {
+        match self.slots.get(key.slot_index() as usize)? {
             Slot::Occupied { generation, value } if *generation == key.generation => Some(value),
             Slot::Occupied { .. } | Slot::Vacant { .. } => None,
         }
     }
 
     pub(crate) fn get_mut(&mut self, key: Key<Tag>) -> Option<&mut T> {
-        match self.slots.get_mut(key.index as usize)? {
+        match self.slots.get_mut(key.slot_index() as usize)? {
             Slot::Occupied { generation, value } if *generation == key.generation => Some(value),
             Slot::Occupied { .. } | Slot::Vacant { .. } => None,
         }
     }
 
     pub(crate) fn remove(&mut self, key: Key<Tag>) -> Option<T> {
-        let slot = self.slots.get(key.index as usize)?;
+        let slot = self.slots.get(key.slot_index() as usize)?;
         let Slot::Occupied { generation, .. } = slot else {
             return None;
         };
@@ -147,13 +157,13 @@ impl<T, Tag> Arena<T, Tag> {
 
         let next_generation = key.generation.wrapping_add(1);
         let old = mem::replace(
-            &mut self.slots[key.index as usize],
+            &mut self.slots[key.slot_index() as usize],
             Slot::Vacant {
                 generation: next_generation,
                 next_free: self.free_head,
             },
         );
-        self.free_head = Some(key.index);
+        self.free_head = Some(key.slot_index());
         self.len -= 1;
 
         let Slot::Occupied { value, .. } = old else {
@@ -177,9 +187,16 @@ impl<T, Tag> Default for Arena<T, Tag> {
 
 #[cfg(test)]
 mod tests {
-    use super::Arena;
+    use core::mem::size_of;
+
+    use super::{Arena, Key};
 
     enum TestTag {}
+
+    #[test]
+    fn key_uses_option_niche() {
+        assert_eq!(size_of::<Option<Key<TestTag>>>(), size_of::<Key<TestTag>>());
+    }
 
     #[test]
     fn rejects_a_key_after_its_slot_is_reused() {
