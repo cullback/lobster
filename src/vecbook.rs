@@ -130,13 +130,11 @@ impl<OrderType: Order> VecBook<OrderType> {
                     fills.push(Fill::Full(maker));
                 }
                 Ordering::Less => {
-                    let maker_snapshot = maker.clone();
+                    let mut fill = maker.clone();
                     let maker = makers.last_mut().expect("maker was present");
                     Self::subtract_quantity(maker, taker_quantity.clone());
-                    fills.push(Fill::Partial {
-                        maker: maker_snapshot,
-                        quantity: taker_quantity,
-                    });
+                    fill.set_quantity(taker_quantity);
+                    fills.push(Fill::Partial(fill));
                     return;
                 }
             }

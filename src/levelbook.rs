@@ -245,12 +245,10 @@ where
                         .orders
                         .get_mut(maker_key)
                         .expect("best maker was present");
-                    let maker_snapshot = maker.order.clone();
+                    let mut fill = maker.order.clone();
                     Self::subtract_quantity(&mut maker.order, taker_quantity.clone());
-                    self.fills.push(Fill::Partial {
-                        maker: maker_snapshot,
-                        quantity: taker_quantity,
-                    });
+                    fill.set_quantity(taker_quantity);
+                    self.fills.push(Fill::Partial(fill));
                     return &self.fills;
                 }
             }

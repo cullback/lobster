@@ -6,8 +6,9 @@ fn full(maker: SimpleOrder) -> Fill<SimpleOrder> {
     Fill::Full(maker)
 }
 
-fn partial(maker: SimpleOrder, quantity: u32) -> Fill<SimpleOrder> {
-    Fill::Partial { maker, quantity }
+fn partial(mut maker: SimpleOrder, quantity: u32) -> Fill<SimpleOrder> {
+    maker.set_quantity(quantity);
+    Fill::Partial(maker)
 }
 
 fn default_is_empty<Book>()
@@ -365,13 +366,9 @@ where
     let mut book = Book::default();
 
     let _ = book.submit(maker.clone());
-    assert_eq!(
-        book.submit(taker),
-        [Fill::Partial {
-            maker: maker.clone(),
-            quantity: ApplicationQuantity(2),
-        }]
-    );
+    let mut executed_maker = maker.clone();
+    executed_maker.set_quantity(ApplicationQuantity(2));
+    assert_eq!(book.submit(taker), [Fill::Partial(executed_maker)]);
     assert_eq!(
         book.get(&maker.id).unwrap().quantity,
         ApplicationQuantity(3)

@@ -456,7 +456,7 @@ fn collect_stats(initial_book: &VecBook<SimpleOrder>, actions: &[Action]) -> Tra
                             stats.full_fills += 1;
                             completed.push(maker.id());
                         }
-                        Fill::Partial { .. } => stats.partial_fills += 1,
+                        Fill::Partial(_) => stats.partial_fills += 1,
                     }
                 }
                 for order_id in completed {

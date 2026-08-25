@@ -18,17 +18,12 @@ Submitting an order returns a slice of fills owned by the book. The slice remain
 next mutable book operation. This keeps the submission API small and lets the book reuse its fill
 buffer.
 
-A full fill owns the maker removed from the book. A partial fill contains:
+A full fill owns the maker removed from the book. A partial fill contains a clone of the maker with
+its quantity changed to the executed quantity. The order contained by either variant therefore
+always reports the executed quantity while preserving all application-specific data.
 
-- a maker-order snapshot immediately before execution; and
-- the executed quantity.
-
-Returning the order preserves arbitrary application-specific data. A partially filled maker remains
-in the book, so producing an owned snapshot requires `Order: Clone`. Completely filled makers are
-moved directly into the fill buffer.
-
-The executed quantity is a separate field rather than being written into a partial maker snapshot.
-Consequently, the snapshot remains a genuine order and its quantity has one unambiguous meaning.
+A partially filled maker remains in the book, so producing the fill requires `Order: Clone`.
+Completely filled makers are moved directly into the fill buffer.
 
 There is no separate submission status. Callers that need to know whether the incoming order remains
 open can query the book by its identifier after processing the fills.
