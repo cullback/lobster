@@ -282,8 +282,8 @@ where
     }
 
     fn cancel(&mut self, order_id: &OrderType::OrderId) -> Option<OrderType> {
-        let key = *self.by_id.get(order_id)?;
-        self.remove_order(key)
+        let key = self.by_id.remove(order_id)?;
+        self.unlink_order(key)
     }
 
     fn reduce(
@@ -379,6 +379,13 @@ where
     }
 
     fn remove_order(&mut self, key: OrderKey) -> Option<OrderType> {
+        let order = self.unlink_order(key)?;
+        let indexed = self.by_id.remove(order.id());
+        debug_assert_eq!(indexed, Some(key), "maker was missing from order index");
+        Some(order)
+    }
+
+    fn unlink_order(&mut self, key: OrderKey) -> Option<OrderType> {
         let node = self.orders.get(key)?;
         let level_key = node.level;
         let previous = node.previous;
@@ -414,7 +421,6 @@ where
             .orders
             .remove(key)
             .expect("validated order was missing from arena");
-        self.by_id.remove(node.order.id());
 
         if remove_level {
             if node.order.is_buy() {
