@@ -246,6 +246,39 @@ fn operation_benchmarks(criterion: &mut Criterion) {
         });
     }
 
+    let iteration_orders = 100_000;
+    let iteration_vecbook = same_price_book::<VecBook<SimpleOrder>>(iteration_orders);
+    let iteration_levelbook = same_price_book::<LevelBook<SimpleOrder>>(iteration_orders);
+    let iteration_flatbook = same_price_book::<FlatLevelBook<SimpleOrder>>(iteration_orders);
+    group.throughput(Throughput::Elements(u64::from(iteration_orders)));
+    group.bench_function("iterate/vecbook", |bencher| {
+        bencher.iter(|| {
+            black_box(
+                iteration_vecbook
+                    .iter()
+                    .fold(0_u64, |sum, order| sum.wrapping_add(u64::from(order.id()))),
+            )
+        });
+    });
+    group.bench_function("iterate/levelbook", |bencher| {
+        bencher.iter(|| {
+            black_box(
+                iteration_levelbook
+                    .iter()
+                    .fold(0_u64, |sum, order| sum.wrapping_add(u64::from(order.id()))),
+            )
+        });
+    });
+    group.bench_function("iterate/flatbook", |bencher| {
+        bencher.iter(|| {
+            black_box(
+                iteration_flatbook
+                    .iter()
+                    .fold(0_u64, |sum, order| sum.wrapping_add(u64::from(order.id()))),
+            )
+        });
+    });
+
     let mut large_vecbook = VecBook::default();
     let mut large_levelbook = LevelBook::default();
     let mut large_flatbook = FlatLevelBook::default();

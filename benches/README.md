@@ -5,8 +5,8 @@ benchmarks with host CPU optimizations through `just`.
 
 - `just bench-synthetic` compares complete mixed workloads.
 - `just bench-quantcup` replays the repository's external QuantCup trace.
-- `just bench-operations` isolates lookup, cancellation, reduction, insertion,
-  sweeping, large-order cloning, price-level count crossover, and integer hash lookup.
+- `just bench-operations` isolates lookup, iteration, cancellation, reduction,
+  insertion, sweeping, large-order cloning, price-level count crossover, and integer hash lookup.
 
 Trace replays compare `VecBook`, tree-indexed `LevelBook`, and contiguous-price-indexed
 `FlatLevelBook`. The `price_levels` operation group varies the active level count from 8 to 8,192

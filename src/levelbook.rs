@@ -54,6 +54,7 @@ impl<'book, OrderType: Order> Iterator for LevelOrders<'book, OrderType> {
 /// provides direct access for cancellation, reduction, and lookup. This implementation requires
 /// cloneable identifiers and prices because it owns keys in those indexes. The identifier index
 /// uses a fast, non-cryptographic hasher intended for trusted exchange input.
+#[derive(Clone)]
 pub struct LevelBook<OrderType: Order> {
     orders: Arena<OrderNode<OrderType>, OrderTag>,
     levels: Arena<LevelNode, LevelTag>,
@@ -149,24 +150,6 @@ impl<OrderType: Order> Default for LevelBook<OrderType> {
     }
 }
 
-impl<OrderType> Clone for LevelBook<OrderType>
-where
-    OrderType: Order,
-    OrderType::OrderId: Clone,
-    OrderType::Price: Clone,
-{
-    fn clone(&self) -> Self {
-        Self {
-            orders: self.orders.clone(),
-            levels: self.levels.clone(),
-            bids: self.bids.clone(),
-            asks: self.asks.clone(),
-            by_id: self.by_id.clone(),
-            fills: self.fills.clone(),
-        }
-    }
-}
-
 impl<OrderType> fmt::Debug for LevelBook<OrderType>
 where
     OrderType: Order + fmt::Debug,
@@ -192,10 +175,6 @@ where
 
     fn len(&self) -> usize {
         self.orders.len()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.orders.is_empty()
     }
 
     fn clear(&mut self) {

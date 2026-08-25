@@ -103,10 +103,6 @@ impl<T, Tag> Arena<T, Tag> {
         self.slots.len()
     }
 
-    pub(crate) const fn is_empty(&self) -> bool {
-        self.len == 0
-    }
-
     pub(crate) fn insert(&mut self, value: T) -> Key<Tag> {
         self.len += 1;
         if let Some(index) = self.free_head {
