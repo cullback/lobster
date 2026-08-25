@@ -9,7 +9,7 @@ use rustc_hash::FxHashMap;
 
 fn same_price_book<BookType>(orders: u32) -> BookType
 where
-    BookType: OrderBook<Order = SimpleOrder>,
+    BookType: OrderBook<Order = SimpleOrder> + Default,
 {
     let mut book = BookType::default();
     for order_id in 0..orders {
@@ -20,7 +20,7 @@ where
 
 fn ask_book<BookType>(orders: u32) -> BookType
 where
-    BookType: OrderBook<Order = SimpleOrder>,
+    BookType: OrderBook<Order = SimpleOrder> + Default,
 {
     let mut book = BookType::default();
     for order_id in 0..orders {
@@ -290,7 +290,7 @@ fn operation_benchmarks(criterion: &mut Criterion) {
 
 fn distinct_level_book<BookType>(levels: u32) -> BookType
 where
-    BookType: OrderBook<Order = SimpleOrder>,
+    BookType: OrderBook<Order = SimpleOrder> + Default,
 {
     let mut book = BookType::default();
     for order_id in 0..levels {
@@ -313,7 +313,7 @@ where
 
 fn layered_book<BookType>(levels: u32, orders_per_level: u32) -> BookType
 where
-    BookType: OrderBook<Order = SimpleOrder>,
+    BookType: OrderBook<Order = SimpleOrder> + Default,
 {
     let mut book = BookType::default();
     for level in 0..levels {

@@ -53,8 +53,11 @@ cross.
 
 ## Construction
 
-`OrderBook` requires `Default`, whose value is an empty book. Empty construction is universal and
-lets generic infrastructure instantiate implementations without implementation-specific factories.
+The included books implement `Default` as an empty book. `Default` is not an `OrderBook` supertrait:
+construction is separate from operating an existing book, and configured implementations may need
+an instrument, tick size, or other state with no meaningful default. Generic code that constructs
+books can require `OrderBook + Default`.
+
 `FromIterator` is not required: collecting an iterator should not unexpectedly execute orders or
 panic when they cross.
 

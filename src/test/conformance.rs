@@ -12,7 +12,7 @@ fn partial(maker: SimpleOrder, quantity: u32) -> Fill<SimpleOrder> {
 
 fn default_is_empty<Book>()
 where
-    Book: OrderBook<Order = SimpleOrder>,
+    Book: OrderBook<Order = SimpleOrder> + Default,
 {
     let mut book = Book::default();
 
@@ -31,7 +31,7 @@ where
 
 fn rests_and_iterates_in_price_time_order<Book>()
 where
-    Book: OrderBook<Order = SimpleOrder>,
+    Book: OrderBook<Order = SimpleOrder> + Default,
 {
     let mut book = Book::default();
     let bid_low = SimpleOrder::buy(0, 1, 99);
@@ -84,7 +84,7 @@ where
 
 fn respects_crossing_boundaries<Book>()
 where
-    Book: OrderBook<Order = SimpleOrder>,
+    Book: OrderBook<Order = SimpleOrder> + Default,
 {
     let mut book = Book::default();
     let bid = SimpleOrder::buy(0, 1, 100);
@@ -102,7 +102,7 @@ where
 
 fn partially_fills_makers_on_both_sides<Book>()
 where
-    Book: OrderBook<Order = SimpleOrder>,
+    Book: OrderBook<Order = SimpleOrder> + Default,
 {
     let mut ask_book = Book::default();
     let ask = SimpleOrder::sell(0, 5, 100);
@@ -125,7 +125,7 @@ where
 
 fn matches_fifo_on_both_sides<Book>()
 where
-    Book: OrderBook<Order = SimpleOrder>,
+    Book: OrderBook<Order = SimpleOrder> + Default,
 {
     let mut ask_book = Book::default();
     let asks = [
@@ -155,7 +155,7 @@ where
 
 fn sweeps_levels_and_rests_the_remainder<Book>()
 where
-    Book: OrderBook<Order = SimpleOrder>,
+    Book: OrderBook<Order = SimpleOrder> + Default,
 {
     let mut book = Book::default();
     let makers = [
@@ -180,7 +180,7 @@ where
 
 fn stops_a_sweep_at_the_limit_price<Book>()
 where
-    Book: OrderBook<Order = SimpleOrder>,
+    Book: OrderBook<Order = SimpleOrder> + Default,
 {
     let mut book = Book::default();
     let makers = [
@@ -200,7 +200,7 @@ where
 
 fn cancels_head_middle_tail_and_reuses_levels<Book>()
 where
-    Book: OrderBook<Order = SimpleOrder>,
+    Book: OrderBook<Order = SimpleOrder> + Default,
 {
     let mut book = Book::default();
     let orders = [
@@ -236,7 +236,7 @@ where
 
 fn reduces_without_losing_priority_and_reports_errors<Book>()
 where
-    Book: OrderBook<Order = SimpleOrder>,
+    Book: OrderBook<Order = SimpleOrder> + Default,
 {
     let mut book = Book::default();
     let first = SimpleOrder::sell(0, 3, 100);
@@ -256,7 +256,7 @@ where
 
 fn clears_orders_and_fill_state<Book>()
 where
-    Book: OrderBook<Order = SimpleOrder>,
+    Book: OrderBook<Order = SimpleOrder> + Default,
 {
     let mut book = Book::default();
     let maker = SimpleOrder::sell(0, 1, 100);
@@ -277,7 +277,7 @@ where
 
 fn follows_the_zero_quantity_policy<Book>()
 where
-    Book: OrderBook<Order = SimpleOrder>,
+    Book: OrderBook<Order = SimpleOrder> + Default,
 {
     let mut book = Book::default();
     let zero = SimpleOrder::sell(0, 0, 100);
@@ -344,7 +344,7 @@ impl Order for ApplicationOrder {
 
 fn preserves_application_owned_types_and_metadata<Book>()
 where
-    Book: OrderBook<Order = ApplicationOrder>,
+    Book: OrderBook<Order = ApplicationOrder> + Default,
 {
     let maker = ApplicationOrder {
         id: "maker".into(),
